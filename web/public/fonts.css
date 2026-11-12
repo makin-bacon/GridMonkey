@@ -1,0 +1,41 @@
+/* Local licensed fonts for the preview. Files live in docs/<Family>/ and are git-ignored.
+   If they're missing (fresh clone), the browser falls back silently.
+   Weights mirror fontWeight() in web/flow.js. */
+
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-Black.otf") format("opentype"); font-weight: 900; font-style: normal; font-display: swap; }
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-BlackItalic.otf") format("opentype"); font-weight: 900; font-style: italic; font-display: swap; }
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-Bold.otf") format("opentype"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-BoldItalic.otf") format("opentype"); font-weight: 700; font-style: italic; font-display: swap; }
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-Extralight.otf") format("opentype"); font-weight: 200; font-style: normal; font-display: swap; }
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-ExtralightItalic.otf") format("opentype"); font-weight: 200; font-style: italic; font-display: swap; }
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-Light.otf") format("opentype"); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-LightItalic.otf") format("opentype"); font-weight: 300; font-style: italic; font-display: swap; }
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-Medium.otf") format("opentype"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-MediumItalic.otf") format("opentype"); font-weight: 500; font-style: italic; font-display: swap; }
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-Regular.otf") format("opentype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-RegularItalic.otf") format("opentype"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-Semibold.otf") format("opentype"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-SemiboldItalic.otf") format("opentype"); font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-Super.otf") format("opentype"); font-weight: 950; font-style: normal; font-display: swap; }
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-SuperItalic.otf") format("opentype"); font-weight: 950; font-style: italic; font-display: swap; }
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-Thin.otf") format("opentype"); font-weight: 100; font-style: normal; font-display: swap; }
+@font-face { font-family: "Graphik"; src: url("/docs/Graphik/Graphik-ThinItalic.otf") format("opentype"); font-weight: 100; font-style: italic; font-display: swap; }
+
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-Black.ttf") format("truetype"); font-weight: 900; font-style: normal; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-BlackItalic.ttf") format("truetype"); font-weight: 900; font-style: italic; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-BoldItalic.ttf") format("truetype"); font-weight: 700; font-style: italic; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-ExtraBold.ttf") format("truetype"); font-weight: 800; font-style: normal; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-ExtraBoldItalic.ttf") format("truetype"); font-weight: 800; font-style: italic; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-ExtraLight.ttf") format("truetype"); font-weight: 200; font-style: normal; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-ExtraLightItalic.ttf") format("truetype"); font-weight: 200; font-style: italic; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-Light.ttf") format("truetype"); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-LightItalic.ttf") format("truetype"); font-weight: 300; font-style: italic; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-Medium.ttf") format("truetype"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-MediumItalic.ttf") format("truetype"); font-weight: 500; font-style: italic; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-SemiBold.ttf") format("truetype"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-SemiBoldItalic.ttf") format("truetype"); font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-Thin.ttf") format("truetype"); font-weight: 100; font-style: normal; font-display: swap; }
+@font-face { font-family: "Montserrat"; src: url("/docs/Montserrat/Montserrat-ThinItalic.ttf") format("truetype"); font-weight: 100; font-style: italic; font-display: swap; }

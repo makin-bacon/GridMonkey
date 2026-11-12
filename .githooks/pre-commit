@@ -1,0 +1,9 @@
+#!/bin/sh
+# Block font files from being committed, even with `git add -f`.
+fonts=$(git diff --cached --name-only --diff-filter=ACMR | grep -iE '\.(otf|ttf|ttc|woff2?|eot|dfont|pfb|pfm)$|(^|/)Document Fonts/')
+if [ -n "$fonts" ]; then
+  echo "pre-commit: font files are licensed and must not be committed:" >&2
+  echo "$fonts" | sed 's/^/  /' >&2
+  echo "Unstage them with: git restore --staged <file>" >&2
+  exit 1
+fi
