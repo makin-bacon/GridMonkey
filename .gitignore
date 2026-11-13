@@ -1,5 +1,61 @@
+# OS
 .DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*~
+
+# Node
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+
+# Build output
 dist/
-*.log
+build/
+coverage/
+*.tsbuildinfo
+
+# InDesign UXP plugin packaging / dev
+*.ccx
+plugin/dist/
+.uxprc
+
+# InDesign working files (lock + temp)
+*.idlk
+~*.indd
+
+# Env / secrets
 .env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Claude Code local settings (team settings in .claude/settings.json stay tracked)
+.claude/settings.local.json
+
+# Fonts — licensed, never committed. The families live locally in docs/<Family>/
+# and are used by the web preview through web/fonts.css. .githooks/pre-commit
+# also blocks font files from being force-added.
+docs/Graphik/
+docs/Montserrat/
+*.otf
+*.ttf
+*.ttc
+*.woff
+*.woff2
+*.eot
+*.dfont
+*.pfb
+*.pfm
+Document Fonts/

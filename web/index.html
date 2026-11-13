@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GridMonkey</title>
+  <meta name="description" content="Baseline-driven multicolumn grid calculator for Adobe InDesign.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cg fill='%23ea580c'%3E%3Crect x='1' y='1' width='4' height='4' rx='1'/%3E%3Crect x='6' y='1' width='4' height='4' rx='1'/%3E%3Crect x='11' y='1' width='4' height='4' rx='1'/%3E%3Crect x='1' y='6' width='4' height='4' rx='1'/%3E%3Crect x='6' y='6' width='4' height='4' rx='1'/%3E%3Crect x='11' y='6' width='4' height='4' rx='1'/%3E%3Crect x='1' y='11' width='4' height='4' rx='1'/%3E%3Crect x='6' y='11' width='4' height='4' rx='1'/%3E%3Crect x='11' y='11' width='4' height='4' rx='1'/%3E%3C/g%3E%3C/svg%3E">
+  <!-- Local licensed fonts: public file, never bundled (see vite.config.js) -->
+  <link rel="stylesheet" href="/fonts.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">▦</span>
+      <h1>GridMonkey</h1>
+      <span class="badge">Alpha</span>
+    </div>
+    <div class="topbar-actions">
+      <button type="button" class="btn ghost" id="startTour">Take the tour</button>
+      <button type="button" class="btn ghost" id="reset">Reset to defaults</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <form id="form" class="inputs" autocomplete="off" novalidate>
+      <section class="step" data-track="inputs" aria-labelledby="s1">
+        <h2 id="s1"><span class="step-num">1</span> Page &amp; type</h2>
+
+        <div class="group">
+          <h3 class="minor">Page size</h3>
+          <div class="field">
+            <label for="preset">Preset</label>
+            <select id="preset">
+              <option value="">Custom</option>
+              <option value="210x297">A4 — 210 × 297 mm</option>
+              <option value="148x210">A5 — 148 × 210 mm</option>
+              <option value="297x420">A3 — 297 × 420 mm</option>
+              <option value="215.9x279.4">US Letter — 215.9 × 279.4 mm</option>
+              <option value="230x300">Magazine — 230 × 300 mm</option>
+              <option value="289x380">Tabloid newspaper — 289 × 380 mm</option>
+            </select>
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label for="pageWidth">Width</label>
+              <div class="unit"><input id="pageWidth" type="number" step="0.1" min="1" inputmode="decimal"><span>mm</span></div>
+            </div>
+            <div class="field">
+              <label for="pageHeight">Height</label>
+              <div class="unit"><input id="pageHeight" type="number" step="0.1" min="1" inputmode="decimal"><span>mm</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="group">
+          <h3 class="minor">Type</h3>
+          <div class="row2">
+            <div class="field">
+              <label for="fontSize">Font size</label>
+              <div class="unit"><input id="fontSize" type="number" step="0.1" min="1" inputmode="decimal"><span>pt</span></div>
+            </div>
+            <div class="field">
+              <label for="leading">Leading</label>
+              <div class="unit"><input id="leading" type="number" step="0.1" min="1" inputmode="decimal"><span>pt</span></div>
+            </div>
+          </div>
+          <dl class="readout">
+            <div><dt>Corrected leading</dt><dd id="outCorrected" class="num">–</dd></div>
+            <div><dt>Proportion (L/F)</dt><dd id="outProportion" class="num">–</dd></div>
+          </dl>
+          <p class="hint" id="proportionHint"></p>
+        </div>
+
+        <div class="group">
+          <h3 class="minor">Grid</h3>
+          <div class="row2">
+            <div class="field">
+              <label for="columns">Columns</label>
+              <input id="columns" type="number" step="1" min="1" inputmode="numeric">
+            </div>
+            <div class="field">
+              <label for="rows">Rows</label>
+              <input id="rows" type="number" step="1" min="1" inputmode="numeric">
+            </div>
+          </div>
+          <p class="hint"><span class="num">12</span> columns divide evenly into <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span> and <span class="num">6</span>, so they give you the most layout options.</p>
+        </div>
+      </section>
+
+      <section class="step" data-track="inputs" aria-labelledby="s2">
+        <h2 id="s2"><span class="step-num">2</span> Inside &amp; outside margins</h2>
+        <p class="hint">Measured in vertical gridlines. Only totals that give whole-unit columns are offered.</p>
+        <div class="group">
+          <h3 class="minor" id="hTotalLabel">Total margin gridlines</h3>
+          <div class="stepper">
+            <button type="button" class="btn icon" data-step="h" data-dir="-1" aria-label="Fewer margin gridlines">−</button>
+            <input id="hTotalRange" type="range" min="0" max="0" step="1" aria-labelledby="hTotalLabel">
+            <button type="button" class="btn icon" data-step="h" data-dir="1" aria-label="More margin gridlines">+</button>
+            <output id="hTotal" class="pill num">–</output>
+          </div>
+        </div>
+        <div class="group">
+          <h3 class="minor">Split</h3>
+          <div class="row3">
+            <div class="field">
+              <label for="hInside">Inside</label>
+              <input id="hInside" type="number" step="1" min="1" inputmode="numeric">
+            </div>
+            <div class="field">
+              <label>Outside</label>
+              <output id="hOutside" class="static num">–</output>
+            </div>
+            <div class="field">
+              <label for="hGutter">Gutter</label>
+              <input id="hGutter" type="number" step="1" min="0" inputmode="numeric">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="step" data-track="inputs" aria-labelledby="s3">
+        <h2 id="s3"><span class="step-num">3</span> Top &amp; bottom margins</h2>
+        <p class="hint">Measured in baseline lines. Only totals that give whole-line rows are offered.</p>
+        <div class="group">
+          <h3 class="minor" id="vTotalLabel">Total margin lines</h3>
+          <div class="stepper">
+            <button type="button" class="btn icon" data-step="v" data-dir="-1" aria-label="Fewer margin lines">−</button>
+            <input id="vTotalRange" type="range" min="0" max="0" step="1" aria-labelledby="vTotalLabel">
+            <button type="button" class="btn icon" data-step="v" data-dir="1" aria-label="More margin lines">+</button>
+            <output id="vTotal" class="pill num">–</output>
+          </div>
+        </div>
+        <div class="group">
+          <h3 class="minor">Split</h3>
+          <div class="row3">
+            <div class="field">
+              <label for="vTop">Top</label>
+              <input id="vTop" type="number" step="1" min="1" inputmode="numeric">
+            </div>
+            <div class="field">
+              <label>Bottom</label>
+              <output id="vBottom" class="static num">–</output>
+            </div>
+            <div class="field">
+              <label for="vGutter">Gutter</label>
+              <input id="vGutter" type="number" step="1" min="0" inputmode="numeric">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="step" data-track="inputs" aria-labelledby="s4">
+        <h2 id="s4"><span class="step-num">4</span> Image-lines <span class="optional">optional</span></h2>
+        <p class="hint">Image-lines let pictures align with the cap height (or x-height) of the first line in each row. To measure, type an <em>H</em> or <em>x</em>, convert it to outlines, and read its height in the Control panel.</p>
+        <div class="group">
+          <h3 class="minor">Measurement</h3>
+          <div class="field">
+            <label for="capHeight">Cap height or x-height</label>
+            <div class="unit"><input id="capHeight" type="number" step="0.01" min="0" inputmode="decimal" placeholder="e.g. 2.5"><span>mm</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="step" data-track="inputs" aria-labelledby="s5">
+        <h2 id="s5"><span class="step-num">5</span> Text styles</h2>
+        <label class="switch"><input type="checkbox" id="stEnabled"> Build paragraph styles that fit this grid</label>
+        <div id="styleFields" class="stack">
+          <p class="hint">Body, three heading levels, and bullet and numbered lists two levels deep. Every line lands on the baseline grid, and every indent is a whole grid unit.</p>
+          <div class="group">
+            <h3 class="minor">Body — <span id="stBodyFamily"></span></h3>
+            <div class="field">
+              <label for="stBodyStyle">Weight</label>
+              <select id="stBodyStyle"></select>
+            </div>
+            <p class="hint">Used for Body, Body First and every list style.</p>
+          </div>
+          <div class="group">
+            <h3 class="minor">Headings — <span id="stHeadingFamily"></span></h3>
+            <div class="row3">
+              <div class="field"><label for="stH1Style">H1 weight</label><select id="stH1Style"></select></div>
+              <div class="field"><label for="stH2Style">H2 weight</label><select id="stH2Style"></select></div>
+              <div class="field"><label for="stH3Style">H3 weight</label><select id="stH3Style"></select></div>
+            </div>
+          </div>
+          <div class="group">
+            <h3 class="minor">Scale &amp; spacing</h3>
+            <div class="field">
+              <label for="stScale">Heading scale</label>
+              <select id="stScale"></select>
+            </div>
+            <div class="field">
+              <label for="stSeparation">Paragraph separation</label>
+              <select id="stSeparation">
+                <option value="indent">First-line indent (adds Body First style)</option>
+                <option value="space">One line of space after</option>
+              </select>
+            </div>
+          </div>
+          <p class="hint">Graphik and Montserrat must be installed (or in a Document Fonts folder next to the .indd) for InDesign to use them.</p>
+        </div>
+      </section>
+
+      <div class="errors" id="errors" role="alert" data-track="inputs" hidden></div>
+    </form>
+
+    <div class="results">
+      <section class="preview card" aria-labelledby="h-preview" data-track="results">
+        <div class="card-head">
+          <div class="preview-title">
+            <h2 id="h-preview">Preview</h2>
+            <div class="seg" role="radiogroup" aria-label="Preview view">
+              <label><input type="radio" name="pview" value="spread"> Spread</label>
+              <label><input type="radio" name="pview" value="single"> Single page</label>
+            </div>
+          </div>
+          <div class="toggles" role="group" aria-label="Preview layers">
+            <label><input type="checkbox" data-layer="labels" checked> Margin sizes</label>
+            <label><input type="checkbox" data-layer="docgrid" checked> Document grid</label>
+            <label><input type="checkbox" data-layer="baseline"> Baselines</label>
+            <label><input type="checkbox" data-layer="columns" checked> Columns</label>
+            <label><input type="checkbox" data-layer="rows" checked> Rows</label>
+            <label><input type="checkbox" data-layer="imagelines" checked> Image-lines</label>
+          </div>
+        </div>
+        <div class="svg-wrap"><svg id="preview" role="img" aria-label="Facing-pages spread showing the grid"></svg></div>
+        <p class="caption" id="summary"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-grids" data-track="any">
+        <h2 id="h-grids">Preferences › Grids</h2>
+        <p class="where">InDesign › Settings (Preferences) › Grids</p>
+        <div class="group">
+          <h3 class="minor" id="bdivLabel">Baseline increment</h3>
+          <div class="seg" role="radiogroup" aria-labelledby="bdivLabel">
+            <label><input type="radio" name="bdiv" value="1"> Full leading</label>
+            <label><input type="radio" name="bdiv" value="2"> <span class="num">÷ 2</span></label>
+            <label><input type="radio" name="bdiv" value="4"> <span class="num">÷ 4</span></label>
+          </div>
+          <p class="hint" id="bdivHint"></p>
+        </div>
+        <div class="group">
+          <h3 class="minor">Baseline grid</h3>
+          <dl class="values" id="valBaseline"></dl>
+        </div>
+        <div class="group">
+          <h3 class="minor">Document grid</h3>
+          <dl class="values" id="valGrids"></dl>
+          <p class="hint">In InDesign, <strong>Horizontal</strong> sets the spacing <em>across</em> the page (the vertical lines) and <strong>Vertical</strong> sets the spacing <em>down</em> the page (the horizontal lines).</p>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="h-margins" data-track="any">
+        <h2 id="h-margins">Layout › Margins and Columns</h2>
+        <p class="where">Do this on the parent (master) page so every page shares it.</p>
+        <dl class="values" id="valMargins"></dl>
+      </section>
+
+      <section class="card" aria-labelledby="h-guides" data-track="any">
+        <h2 id="h-guides">Layout › Create Guides</h2>
+        <p class="where">Set <strong>Fit Guides to: Margins</strong>.</p>
+        <dl class="values" id="valGuides"></dl>
+      </section>
+
+      <section class="card" aria-labelledby="h-image" id="cardImage" data-track="any">
+        <h2 id="h-image">Image-lines</h2>
+        <p class="where">Drag a horizontal guide to <em>Y</em>, colour it pink (ideally on its own layer), then Edit › Step and Repeat.</p>
+        <dl class="values" id="valImage"></dl>
+      </section>
+
+      <section class="card" aria-labelledby="h-styles" id="cardStyles" data-track="results">
+        <div class="card-head">
+          <div>
+            <h2 id="h-styles">Paragraph styles</h2>
+            <p class="where">Created in a <strong>GridMonkey</strong> style group, all aligned to the baseline grid.</p>
+          </div>
+          <button type="button" class="btn" id="downloadJsx">Download InDesign script</button>
+        </div>
+        <p class="hint warn" id="styleWarnings" hidden></p>
+        <div class="table-wrap"><table class="styles" id="styleTable"></table></div>
+        <p class="hint">The script sets the baseline grid and creates (or updates) these styles in the open document. Put it in InDesign's Scripts Panel folder (Window › Utilities › Scripts, then right-click User › Reveal in Finder) and double-click it. One Undo reverses all of it.</p>
+      </section>
+
+      <section class="card" aria-labelledby="h-export" id="cardExport" data-track="results">
+        <div class="card-head">
+          <div>
+            <h2 id="h-export">InDesign document</h2>
+            <p class="where">An IDML file with this grid, the paragraph styles and dummy copy in a simple layout. Grids and guides are switched on.</p>
+          </div>
+          <button type="button" class="btn primary" id="downloadIdml">Download IDML</button>
+        </div>
+        <div class="export-controls">
+          <div class="field">
+            <label for="exportFormat">Document format</label>
+            <select id="exportFormat"></select>
+          </div>
+          <div class="toggles" role="group" aria-label="Document preview options">
+            <label><input type="checkbox" id="exportMaster"> Show parent spread</label>
+            <label><input type="checkbox" id="exportThreads"> Show text threads</label>
+          </div>
+        </div>
+        <div class="svg-wrap"><svg id="exportPreview" role="img" aria-label="Preview of the document pages, frames and dummy copy"></svg></div>
+        <p class="caption" id="exportSummary"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-specimen" id="cardSpecimen" data-track="any">
+        <h2 id="h-specimen">Specimen</h2>
+        <p class="where" id="specimenCaption"></p>
+        <div class="svg-wrap specimen-wrap"><svg id="specimen" role="img" aria-label="Sample text set in the styles on the baseline grid"></svg></div>
+        <p class="hint">The preview uses your fonts if they're installed in this browser, with a fallback if not. Line breaks will differ a little from InDesign, but the vertical positions follow the same rules.</p>
+      </section>
+    </div>
+  </main>
+
+  <footer class="px-4 pt-6 pb-20 text-center">
+    <p class="text-small text-slate-500 dark:text-slate-400">GridMonkey <span class="num" id="appVersion"></span></p>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

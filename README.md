@@ -1,14 +1,23 @@
 # GridMonkey
 
-A grid calculator for Adobe InDesign.
+A leading-driven multicolumn grid calculator for Adobe InDesign. Enter the page size, font size, leading, columns and rows. GridMonkey works out a baseline grid and document grid that fit the page exactly, then lets you allocate margins and gutters in whole gridlines, so every column and row edge lands on the grid.
 
-## Plan
+## Run
 
-- **`src/core/`** – pure JavaScript grid-calculation logic (no InDesign or DOM dependencies), so the same code runs everywhere.
-- **`plugin/`** – InDesign UXP plugin (InDesign 18.5+) that wraps the core logic and applies the results to the document (margins, columns, gutters, baseline grid, guides).
-- **`web/`** – in-browser fallback that uses the same core logic, so you can calculate values and enter them by hand.
-- **`docs/`** – reference material, including screenshots of the process.
+```sh
+npm install
+npm run dev     # → http://127.0.0.1:5280/web/
+npm run build   # → dist/
+npm test
+```
 
-## Status
+Built with Vite and Tailwind CSS v4. Needs Node 20.19+.
 
-Scaffolding only. The calculation logic is still to come.
+## Structure
+
+- **`src/core/`**: pure JavaScript grid logic, shared by the web app and the plugin.
+- **`web/`**: browser app with a live spread preview and values to copy into each InDesign dialog.
+- **`plugin/`**: InDesign UXP plugin (planned) that applies the grid to the document directly.
+- **`docs/`**: reference material.
+
+See `CLAUDE.md` for the method, conventions and roadmap.
