@@ -28,7 +28,12 @@ export const DEFAULTS = Object.freeze({
   leading: 13, // pt
   columns: 12,
   rows: 8,
-  horizontal: { margins: null, inside: null, gutter: 1 }, // inside + outside, in units
+  // Facing pages: the horizontal margins are inside + outside and pages mirror.
+  // Single-sided (facing: false): the same two numbers are left + right, no mirroring.
+  facing: true,
+  // `inside` is the first side (inside, or left when single-sided). equal: true splits
+  // the total evenly (only even totals are offered then).
+  horizontal: { margins: null, inside: null, gutter: 1, equal: false }, // in units
   vertical: { margins: null, top: null, gutter: 1 }, // top + bottom, in lines
   capHeight: null, // mm, optional (step 5)
   baselineDivisor: 1, // baseline increment = leading ÷ this (1, 2 or 4 — halving only)
@@ -64,16 +69,20 @@ const clampInt = (n, lo, hi) => Math.min(hi, Math.max(lo, Math.round(n)));
  */
 function allocateAxis(units, count, requested) {
   const gutter = clampInt(requested.gutter ?? 1, 0, units);
-  const options = validMarginTotals(units, count, gutter);
-  if (!options.length) {
-    return { ok: false, gutter, options, error: 'Too many tracks or too wide a gutter for this page.' };
+  const all = validMarginTotals(units, count, gutter);
+  if (!all.length) {
+    return { ok: false, gutter, options: all, error: 'Too many tracks or too wide a gutter for this page.' };
   }
+  // Equal sides need an even total; if the grid offers none, fall back to any split.
+  const even = all.filter((m) => m % 2 === 0);
+  const equal = !!requested.equal && even.length > 0;
+  const options = equal ? even : all;
   const target = requested.margins ?? Math.round(units * DEFAULT_MARGIN_SHARE);
   const margins = options.includes(requested.margins) ? requested.margins : nearest(options, target);
-  const first = clampInt(requested.first ?? Math.floor(margins / 2), 1, margins - 1);
+  const first = equal ? margins / 2 : clampInt(requested.first ?? Math.floor(margins / 2), 1, margins - 1);
   const second = margins - first;
   const track = (units - margins - (count - 1) * gutter) / count;
-  return { ok: true, units, count, gutter, options, margins, first, second, track };
+  return { ok: true, units, count, gutter, options, margins, first, second, track, equal, equalAvailable: even.length > 0 };
 }
 
 /**
@@ -112,6 +121,7 @@ export function computeGrid(input = {}) {
     margins: i.horizontal.margins,
     first: i.horizontal.inside,
     gutter: i.horizontal.gutter,
+    equal: i.horizontal.equal,
   });
   const v = allocateAxis(lines, i.rows, {
     margins: i.vertical.margins,
@@ -156,12 +166,18 @@ export function computeGrid(input = {}) {
   };
 
   // Step 4 — Layout > Margins and Columns, Layout > Create Guides
+  // inside/outside are the two horizontal margins either way (InDesign's Left/Right
+  // fields hold inside/outside on facing pages); left/right name them for single-sided.
+  const facing = i.facing !== false;
   const margins = {
     top: v.first * leadingMm,
     bottom: v.second * leadingMm,
     inside: h.first * unitMm,
     outside: h.second * unitMm,
+    left: h.first * unitMm,
+    right: h.second * unitMm,
   };
+  const marginNames = facing ? { first: 'Inside', second: 'Outside' } : { first: 'Left', second: 'Right' };
   const columns = {
     number: i.columns,
     gutter: h.gutter * unitMm,
@@ -190,10 +206,12 @@ export function computeGrid(input = {}) {
   return {
     ok: true,
     input: i,
+    facing,
+    marginNames,
     type,
     grid,
     allocation: {
-      horizontal: { options: h.options, total: h.margins, inside: h.first, outside: h.second, gutter: h.gutter },
+      horizontal: { options: h.options, total: h.margins, inside: h.first, outside: h.second, gutter: h.gutter, equal: h.equal, equalAvailable: h.equalAvailable },
       vertical: { options: v.options, total: v.margins, top: v.first, bottom: v.second, gutter: v.gutter },
     },
     baseline,

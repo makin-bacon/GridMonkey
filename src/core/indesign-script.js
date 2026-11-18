@@ -20,6 +20,7 @@ export function buildStylesScript(grid, styles) {
       leading: round(s.leading, 8),
       spaceBefore: `${round(s.spaceBefore, 8)}mm`,
       spaceAfter: `${round(s.spaceAfter, 8)}mm`,
+      sameParaStyleSpacing: s.sameParaStyleSpacing == null ? null : `${round(s.sameParaStyleSpacing, 8)}mm`,
       leftIndent: `${round(s.leftIndent, 8)}mm`,
       firstLineIndent: `${round(s.firstLineIndent, 8)}mm`,
       alignFirstLineOnly: s.alignFirstLineOnly,
@@ -27,6 +28,7 @@ export function buildStylesScript(grid, styles) {
       keepWithNext: s.keepWithNext,
       list: s.list,
     })),
+    characterStyles: styles.characterStyles ?? [],
   };
 
   return `// GridMonkey: paragraph styles for a ${grid.input.pageWidth} × ${grid.input.pageHeight} mm page,
@@ -44,7 +46,7 @@ export function buildStylesScript(grid, styles) {
 
   app.doScript(main, ScriptLanguage.JAVASCRIPT, undefined, UndoModes.ENTIRE_SCRIPT, 'GridMonkey styles');
 
-  var msg = 'GridMonkey: baseline grid set and ' + SPEC.styles.length + ' paragraph styles created in "' + SPEC.group + '".';
+  var msg = 'GridMonkey: baseline grid set and ' + SPEC.styles.length + ' paragraph and ' + SPEC.characterStyles.length + ' character styles created in "' + SPEC.group + '".';
   if (warnings.length) msg += '\\n\\nWarnings:\\n' + warnings.join('\\n');
   alert(msg);
 
@@ -78,9 +80,10 @@ export function buildStylesScript(grid, styles) {
       set(st, 'leading', s.leading, s.name);
       set(st, 'spaceBefore', s.spaceBefore, s.name);
       set(st, 'spaceAfter', s.spaceAfter, s.name);
+      if (s.sameParaStyleSpacing !== null) set(st, 'sameParaStyleSpacing', s.sameParaStyleSpacing, s.name);
       set(st, 'leftIndent', s.leftIndent, s.name);
       set(st, 'firstLineIndent', s.firstLineIndent, s.name);
-      set(st, 'gridAlignment', GridAlignment.ALIGN_TO_BASELINE, s.name);
+      set(st, 'alignToBaseline', true, s.name); // GridAlignment.ALIGN_TO_BASELINE doesn't exist in InDesign 2026
       set(st, 'gridAlignFirstLineOnly', s.alignFirstLineOnly, s.name);
       set(st, 'hyphenation', s.hyphenation, s.name);
       set(st, 'keepWithNext', s.keepWithNext, s.name);
@@ -102,6 +105,17 @@ export function buildStylesScript(grid, styles) {
         set(st, 'numberingExpression', s.list.expression, s.name);
         set(st, 'numberingContinue', true, s.name);
       }
+    }
+
+    // Character styles: only the one attribute each, so they stay versatile.
+    var cgroup = doc.characterStyleGroups.itemByName(SPEC.group);
+    if (!cgroup.isValid) cgroup = doc.characterStyleGroups.add({ name: SPEC.group });
+    for (var j = 0; j < SPEC.characterStyles.length; j++) {
+      var c = SPEC.characterStyles[j];
+      var cs = cgroup.characterStyles.itemByName(c.name);
+      if (!cs.isValid) cs = cgroup.characterStyles.add({ name: c.name });
+      if (c.fontStyle) set(cs, 'fontStyle', c.fontStyle, c.name);
+      if (c.fillColor) set(cs, 'fillColor', doc.swatches.itemByName(c.fillColor), c.name);
     }
   }
 })();

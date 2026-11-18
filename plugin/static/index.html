@@ -1,0 +1,144 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <div class="top">
+    <header class="row between">
+      <sp-heading size="XS">GridMonkey</sp-heading>
+      <sp-detail id="version"></sp-detail>
+    </header>
+    <div class="row center">
+      <sp-checkbox id="preview" size="s" class="grow">Preview</sp-checkbox>
+      <sp-checkbox id="matchSize" size="s">Match page size</sp-checkbox>
+    </div>
+    <sp-button id="apply" variant="cta" class="full">Apply to document</sp-button>
+    <sp-body size="XS" id="status" class="status">Starting…</sp-body>
+  </div>
+  <div class="scroll">
+
+  <section>
+    <div class="row between">
+      <sp-detail>PAGE &amp; TYPE</sp-detail>
+      <sp-action-button id="fromDoc" quiet size="s">Use document size</sp-action-button>
+    </div>
+    <div class="row center">
+      <sp-checkbox id="facing" size="s">Facing pages (inside/outside margins)</sp-checkbox>
+    </div>
+    <div class="row">
+      <div class="field"><sp-label>Width (mm)</sp-label><sp-textfield id="pageWidth" type="number" size="s"></sp-textfield></div>
+      <div class="field"><sp-label>Height (mm)</sp-label><sp-textfield id="pageHeight" type="number" size="s"></sp-textfield></div>
+    </div>
+    <div class="row">
+      <div class="field"><sp-label>Font size (pt)</sp-label><sp-textfield id="fontSize" type="number" size="s"></sp-textfield></div>
+      <div class="field"><sp-label>Leading (pt)</sp-label><sp-textfield id="leading" type="number" size="s"></sp-textfield></div>
+    </div>
+    <sp-body size="XS" class="muted" id="typeReadout"></sp-body>
+    <div class="row">
+      <div class="field"><sp-label>Columns</sp-label><sp-textfield id="columns" type="number" size="s"></sp-textfield></div>
+      <div class="field"><sp-label>Rows</sp-label><sp-textfield id="rows" type="number" size="s"></sp-textfield></div>
+    </div>
+    <div class="row center">
+      <sp-checkbox id="rowsEnabled" size="s">Use rows</sp-checkbox>
+    </div>
+  </section>
+
+  <section>
+    <sp-detail id="hTitle">INSIDE &amp; OUTSIDE MARGINS</sp-detail>
+    <div class="row center">
+      <sp-label class="grow">Total gridlines</sp-label>
+      <sp-action-button id="hDec" size="s" quiet>−</sp-action-button>
+      <sp-body size="S" class="mono total" id="hTotal">–</sp-body>
+      <sp-action-button id="hInc" size="s" quiet>+</sp-action-button>
+    </div>
+    <div class="row">
+      <div class="field"><sp-label id="hFirstLabel">Inside</sp-label><sp-textfield id="hInside" type="number" size="s"></sp-textfield></div>
+      <div class="field"><sp-label id="hSecondLabel">Outside</sp-label><sp-body size="S" class="mono static" id="hOutside">–</sp-body></div>
+      <div class="field"><sp-label>Gutter</sp-label><sp-textfield id="hGutter" type="number" size="s"></sp-textfield></div>
+    </div>
+    <div class="row center">
+      <sp-checkbox id="hEqual" size="s">Equal on both sides</sp-checkbox>
+    </div>
+  </section>
+
+  <section>
+    <sp-detail>TOP &amp; BOTTOM MARGINS</sp-detail>
+    <div class="row center">
+      <sp-label class="grow">Total lines</sp-label>
+      <sp-action-button id="vDec" size="s" quiet>−</sp-action-button>
+      <sp-body size="S" class="mono total" id="vTotal">–</sp-body>
+      <sp-action-button id="vInc" size="s" quiet>+</sp-action-button>
+    </div>
+    <div class="row">
+      <div class="field"><sp-label>Top</sp-label><sp-textfield id="vTop" type="number" size="s"></sp-textfield></div>
+      <div class="field"><sp-label>Bottom</sp-label><sp-body size="S" class="mono static" id="vBottom">–</sp-body></div>
+      <div class="field" id="vGutterField"><sp-label>Gutter</sp-label><sp-textfield id="vGutter" type="number" size="s"></sp-textfield></div>
+    </div>
+  </section>
+
+  <section>
+    <sp-detail>BASELINE &amp; IMAGE-LINES</sp-detail>
+    <div class="row">
+      <div class="field"><sp-label>Baseline increment</sp-label><sp-picker id="bdiv" size="s"></sp-picker></div>
+      <div class="field"><sp-label>Cap height (mm)</sp-label><sp-textfield id="capHeight" type="number" size="s" placeholder="optional"></sp-textfield></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="row between">
+      <sp-detail>TEXT STYLES</sp-detail>
+      <sp-checkbox id="stEnabled" size="s">Include</sp-checkbox>
+    </div>
+    <div id="styleFields">
+      <div class="row">
+        <div class="field"><sp-label>Body (Graphik)</sp-label><sp-picker id="stBody" size="s"></sp-picker></div>
+        <div class="field"><sp-label>Scale</sp-label><sp-picker id="stScale" size="s"></sp-picker></div>
+      </div>
+      <div class="row">
+        <div class="field"><sp-label>H1 (Montserrat)</sp-label><sp-picker id="stH1" size="s"></sp-picker></div>
+        <div class="field"><sp-label>H2</sp-label><sp-picker id="stH2" size="s"></sp-picker></div>
+        <div class="field"><sp-label>H3</sp-label><sp-picker id="stH3" size="s"></sp-picker></div>
+      </div>
+      <div class="row">
+        <div class="field"><sp-label>H1 space after</sp-label><sp-picker id="stH1After" size="s"></sp-picker></div>
+        <div class="field"><sp-label>H2</sp-label><sp-picker id="stH2After" size="s"></sp-picker></div>
+        <div class="field"><sp-label>H3</sp-label><sp-picker id="stH3After" size="s"></sp-picker></div>
+      </div>
+      <div class="row">
+        <sp-checkbox id="stH1FirstLine" size="s" class="grow">First line only</sp-checkbox>
+        <sp-checkbox id="stH2FirstLine" size="s" class="grow">First line only</sp-checkbox>
+        <sp-checkbox id="stH3FirstLine" size="s" class="grow">First line only</sp-checkbox>
+      </div>
+      <div class="row">
+        <div class="field"><sp-label>Paragraph separation</sp-label><sp-picker id="stSeparation" size="s"></sp-picker></div>
+        <div class="field"><sp-label>Body space after</sp-label><sp-picker id="stBodyAfter" size="s"></sp-picker></div>
+      </div>
+      <div class="row">
+        <div class="field"><sp-label>Space after lists</sp-label><sp-picker id="stListAfter" size="s"></sp-picker></div>
+      </div>
+      <sp-checkbox id="stBodyFirstLine" size="s">Body: align first line only</sp-checkbox>
+    </div>
+  </section>
+
+  <section>
+    <sp-detail>PREVIEW</sp-detail>
+    <div id="mini" class="mini"></div>
+    <sp-body size="XS" class="muted mono" id="summary"></sp-body>
+  </section>
+
+
+
+  <section class="last">
+    <sp-detail>NEW DOCUMENT</sp-detail>
+    <div class="row center">
+      <div class="field grow"><sp-picker id="format" size="s"></sp-picker></div>
+      <sp-button id="create" variant="secondary" size="s">Create</sp-button>
+    </div>
+  </section>
+  </div>
+
+  <script src="index.js"></script>
+</body>
+</html>

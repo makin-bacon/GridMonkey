@@ -120,3 +120,114 @@ test('disallowed weights fall back to defaults', () => {
   assert.ok(r.styles.filter((s) => !s.headingLevel).every((s) => s.fontStyle === 'Regular'));
   assert.deepEqual([1, 2, 3].map((l) => byName(r, `Heading ${l}`).fontStyle), ['SemiBold', 'SemiBold', 'Medium']);
 });
+
+test('Based On: H1 on Body, H2/H3 on Heading 1, everything else on Body', () => {
+  const s = computeStyles(computeGrid({}), { separation: 'indent' });
+  const based = Object.fromEntries(s.styles.map((x) => [x.name, x.basedOn]));
+  assert.equal(based.Body, null);
+  assert.equal(based['Heading 1'], 'Body');
+  assert.equal(based['Heading 2'], 'Heading 1');
+  assert.equal(based['Heading 3'], 'Heading 1');
+  for (const n of ['Body First', 'Bullet 1', 'Bullet 2', 'Number 1', 'Number 2']) assert.equal(based[n], 'Body');
+  // Parents come before children so the script and plugin can link them.
+  s.styles.forEach((x, i) => x.basedOn && assert.ok(s.styles.findIndex((y) => y.name === x.basedOn) < i));
+});
+
+test('heading space after can be switched per level', () => {
+  for (const divisor of [1, 2, 4]) {
+    const grid = computeGrid({ baselineDivisor: divisor });
+    const lead = grid.grid.leadingMm;
+    const on = computeStyles(grid, { headingSpaceAfter: { 1: true, 2: true, 3: true } });
+    const off = computeStyles(grid, { headingSpaceAfter: { 1: false, 2: false, 3: false } });
+    for (const n of ['Heading 1', 'Heading 2', 'Heading 3']) {
+      const a = byName(on, n).spaceAfter;
+      const b = byName(off, n).spaceAfter;
+      assert.ok(a > b, `${n} ÷${divisor}: on > off`);
+      assert.ok(b < lead - 1e-9, `${n} ÷${divisor}: off adds less than a line`);
+      if (divisor === 1) { assert.equal(b, 0); assert.ok(Math.abs(a - lead) < 1e-9); }
+      // Before + leading + after stays whole lines on a fine grid.
+      if (divisor > 1) {
+        const s = byName(off, n);
+        const block = s.spaceBefore + mmToPtInv(s.leading) + s.spaceAfter;
+        assert.ok(isMultiple(block, lead), `${n} ÷${divisor}: whole lines`);
+      }
+    }
+  }
+  // Default: H1 and H2 on, H3 off.
+  const d = computeStyles(computeGrid({}));
+  assert.equal(byName(d, 'Heading 3').spaceAfter, 0);
+  assert.ok(byName(d, 'Heading 2').spaceAfter > 0);
+});
+const mmToPtInv = (p) => (p * 25.4) / 72;
+
+test('half-line space after: Body exact, headings padded to whole lines, warning on ÷1', () => {
+  for (const divisor of [2, 4]) {
+    const grid = computeGrid({ baselineDivisor: divisor });
+    const lead = grid.grid.leadingMm;
+    const r = computeStyles(grid, { separation: 'space', bodySpaceAfter: 0.5, headingSpaceAfter: { 1: 0.5, 2: 0.5, 3: 0.5 } });
+    assert.ok(Math.abs(byName(r, 'Body').spaceAfter - lead / 2) < 1e-9, `÷${divisor}: Body ½ line`);
+    assert.equal(r.warnings.some((w) => w.includes('½-line')), false);
+    for (const n of ['Heading 1', 'Heading 2', 'Heading 3']) {
+      const s = byName(r, n);
+      assert.ok(s.spaceAfter >= lead / 2 - 1e-9, `${n} ÷${divisor}: at least ½ line`);
+      assert.ok(isMultiple(s.spaceBefore + mmToPtInv(s.leading) + s.spaceAfter, lead), `${n} ÷${divisor}: whole lines`);
+    }
+  }
+  const one = computeStyles(computeGrid({ baselineDivisor: 1 }), { bodySpaceAfter: 0.5 });
+  assert.ok(one.warnings.some((w) => w.includes('½-line') && w.includes('Body')));
+  // Legacy booleans still work; Body's space after follows separation when unset.
+  const legacy = computeStyles(computeGrid({}), { headingSpaceAfter: { 1: true, 2: false, 3: false }, separation: 'indent' });
+  assert.deepEqual([legacy.options.headingSpaceAfter[1], legacy.options.headingSpaceAfter[2]], [1, 0]);
+  assert.equal(byName(legacy, 'Body').spaceAfter, 0);
+  assert.equal(computeStyles(computeGrid({}), { separation: 'space' }).options.bodySpaceAfter, 1);
+});
+
+test('align first line only: automatic by divisor, overridable per style', () => {
+  const auto1 = computeStyles(computeGrid({ baselineDivisor: 1 }));
+  const auto2 = computeStyles(computeGrid({ baselineDivisor: 2 }));
+  assert.equal(byName(auto1, 'Body').alignFirstLineOnly, false);
+  assert.equal(byName(auto1, 'Heading 1').alignFirstLineOnly, true);
+  assert.equal(byName(auto2, 'Heading 1').alignFirstLineOnly, false);
+
+  const grid = computeGrid({ baselineDivisor: 2 });
+  const r = computeStyles(grid, { separation: 'indent', firstLineOnly: { body: true, 2: true } });
+  for (const n of ['Body', 'Body First', 'Bullet 1', 'Number 2', 'Heading 2']) assert.equal(byName(r, n).alignFirstLineOnly, true, n);
+  assert.equal(byName(r, 'Heading 1').alignFirstLineOnly, false);
+  assert.deepEqual(r.options.firstLineOnly, { body: true, 1: false, 2: true, 3: false });
+
+  // On ÷1, all-lines headings use whole-line leading; first-line-only allows half lines.
+  const g1 = computeGrid({ baselineDivisor: 1 });
+  const lead = g1.type.correctedLeadingPt;
+  const all = computeStyles(g1, { firstLineOnly: { 1: false, 2: false, 3: false } });
+  for (const n of ['Heading 1', 'Heading 2', 'Heading 3']) assert.ok(isMultiple(byName(all, n).leading, lead), n);
+});
+
+test('hyphenation is off in every style', () => {
+  for (const separation of ['indent', 'space']) {
+    const r = computeStyles(computeGrid({}), { separation });
+    for (const s of r.styles) assert.equal(s.hyphenation, false, s.name);
+  }
+});
+
+test('space after lists: on the list styles, items of one style stay tight', () => {
+  const grid = computeGrid({ baselineDivisor: 2 });
+  const lead = grid.grid.leadingMm;
+  const none = computeStyles(grid);
+  for (const n of ['Bullet 1', 'Bullet 2', 'Number 1', 'Number 2']) {
+    assert.equal(byName(none, n).spaceAfter, 0);
+    assert.equal(byName(none, n).sameParaStyleSpacing, null);
+  }
+  for (const v of [0.5, 1]) {
+    const r = computeStyles(grid, { listSpaceAfter: v });
+    assert.equal(r.options.listSpaceAfter, v);
+    for (const n of ['Bullet 1', 'Bullet 2', 'Number 1', 'Number 2']) {
+      assert.ok(Math.abs(byName(r, n).spaceAfter - v * lead) < 1e-9, n);
+      assert.equal(byName(r, n).sameParaStyleSpacing, 0, n);
+    }
+    assert.equal(byName(r, 'Body').sameParaStyleSpacing, undefined);
+  }
+  const one = computeStyles(computeGrid({ baselineDivisor: 1 }), { listSpaceAfter: 0.5 });
+  assert.ok(one.warnings.some((w) => w.includes('Lists')));
+  // Written to the .jsx too.
+  assert.match(buildStylesScript(grid, computeStyles(grid, { listSpaceAfter: 1 })), /sameParaStyleSpacing/);
+});

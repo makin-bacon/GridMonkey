@@ -1,6 +1,6 @@
 {
   "name": "gridmonkey",
-  "version": "0.1.0-alpha",
+  "version": "0.2.0-alpha",
   "private": true,
   "description": "Leading-driven multicolumn grid calculator for Adobe InDesign.",
   "type": "module",
@@ -8,13 +8,17 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --port 5281 --host 127.0.0.1",
-    "test": "node --test src/",
-    "prepare": "git config core.hooksPath .githooks"
+    "test": "node --test src/ plugin/src/",
+    "prepare": "git config core.hooksPath .githooks",
+    "plugin:build": "vite build --config plugin/vite.config.js",
+    "plugin:watch": "vite build --config plugin/vite.config.js --watch",
+    "library:import": "node scripts/import-library.mjs"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
+    "@fortawesome/free-solid-svg-icons": "^6.7.2",
     "@tailwindcss/forms": "^0.5.11",
     "@tailwindcss/vite": "^4.3.5",
     "tailwindcss": "^4.3.5",

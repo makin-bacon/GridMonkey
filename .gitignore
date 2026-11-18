@@ -59,3 +59,6 @@ docs/Montserrat/
 *.pfb
 *.pfm
 Document Fonts/
+
+# Local archives (may contain the licensed fonts)
+docs/*.zip
