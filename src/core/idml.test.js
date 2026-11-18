@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { computeGrid } from './grid.js';
 import { computeStyles } from './styles.js';
-import { computeDocument, FORMATS, textColumns } from './document.js';
+import { computeDocument, emptyDocument, FORMATS, textColumns } from './document.js';
 import { buildIdml, buildIdmlFiles, paragraphStyleId } from './idml.js';
 import { zipStore, crc32 } from './zip.js';
 
@@ -87,7 +87,7 @@ test('facing spreads: page 1 alone on the right, then pairs', () => {
 test('grids and guides are switched on; units and baseline match the grid', () => {
   const { grid, styles, doc } = setup('single', { baselineDivisor: 2 });
   const prefs = buildIdmlFiles(grid, styles, doc).find((f) => f.path === 'Resources/Preferences.xml').data;
-  for (const a of ['GuidesShown="true"', 'DocumentGridShown="true"', 'BaselineGridShown="true"', 'SmartTextReflow="true"', 'HorizontalMeasurementUnits="Millimeters"']) {
+  for (const a of ['GuidesShown="true"', 'DocumentGridShown="false"', 'BaselineGridShown="false"', 'SmartTextReflow="true"', 'HorizontalMeasurementUnits="Millimeters"']) {
     assert.ok(prefs.includes(a), a);
   }
   assert.ok(prefs.includes(`BaselineDivision="${Math.round(grid.baseline.incrementPt * 1e8) / 1e8}"`));
@@ -136,4 +136,209 @@ test('fitStory trims to whole paragraphs and drops stranded headings', async () 
   assert.equal(trimmed.story.length, headingAt);
   assert.ok(!trimmed.story.at(-1)[0].startsWith('Heading'));
   assert.equal(fitStory(doc, 0).story.length, 1);
+});
+
+test('utf8 fallback matches TextEncoder', async () => {
+  const { utf8 } = await import('./zip.js');
+  const saved = globalThis.TextEncoder;
+  const s = 'Grid ÷ 2 – “quotes” 𝄞';
+  const native = Array.from(new saved().encode(s));
+  try { globalThis.TextEncoder = undefined; assert.deepEqual(Array.from(utf8(s)), native); }
+  finally { globalThis.TextEncoder = saved; }
+});
+
+test('smart text reflow can be switched off for the plugin', () => {
+  const { grid, styles, doc } = setup('single');
+  const prefs = (o) => buildIdmlFiles(grid, styles, doc, o).find((f) => f.path === 'Resources/Preferences.xml').data;
+  assert.ok(prefs().includes('SmartTextReflow="true"'));
+  assert.ok(prefs({ smartTextReflow: false }).includes('SmartTextReflow="false"'));
+});
+
+// ---------- folios + house defaults ----------
+import { folioGeometry, folioText, EM_SPACE } from './document.js';
+import { HOUSE_GRID, HOUSE_STYLES } from './presets.js';
+
+const house = (format = 'facing4', extra = {}) => {
+  const grid = computeGrid(HOUSE_GRID);
+  const styles = computeStyles(grid, HOUSE_STYLES);
+  const doc = computeDocument(grid, styles, format, { folios: true, title: 'Field Notes & Co', ...extra });
+  return { grid, styles, doc };
+};
+
+test('the reference document (SPREAD-REV-181126) rebuilds exactly (house defaults with 8 inside, ÷4)', () => {
+  const grid = computeGrid({ ...HOUSE_GRID, horizontal: { ...HOUSE_GRID.horizontal, inside: 8 }, baselineDivisor: 4 });
+  assert.ok(grid.ok);
+  assert.deepEqual([grid.allocation.horizontal.total, grid.allocation.horizontal.inside, grid.allocation.horizontal.gutter], [13, 8, 2]);
+  assert.deepEqual([grid.allocation.vertical.total, grid.allocation.vertical.top, grid.allocation.vertical.gutter], [13, 6, 1]);
+  assert.equal(grid.baseline.divisor, 4);
+  // Values from the reference IDML (points).
+  const pt = (mm) => (mm * 72) / 25.4;
+  const near = (a, b) => Math.abs(a - b) < 1e-3;
+  assert.ok(near(grid.type.correctedLeadingPt, 10.02249719));
+  assert.ok(near(pt(grid.margins.top), 60.13498313) && near(pt(grid.margins.bottom), 70.15748031));
+  assert.ok(near(pt(grid.margins.inside), 80.71533431) && near(pt(grid.margins.outside), 50.44708395));
+  assert.ok(near(pt(grid.columns.gutter), 20.17883358));
+  assert.equal(grid.rows.number, 3);
+  assert.ok(near(pt(grid.margins.top + grid.rows.height), 290.65241845)); // first row guide
+});
+
+test('folio: on the baseline grid, inside the bottom margin, as close to centred as the grid allows', () => {
+  for (const input of [HOUSE_GRID, {}, { ...HOUSE_GRID, baselineDivisor: 1 }, { ...HOUSE_GRID, baselineDivisor: 4 }]) {
+    const grid = computeGrid(input);
+    const styles = computeStyles(grid);
+    const g = folioGeometry(grid, styles);
+    const H = grid.input.pageHeight;
+    const inc = grid.baseline.increment;
+    const steps = g.baseline / inc;
+    assert.ok(Math.abs(steps - Math.round(steps)) < 1e-9, 'baseline on the grid');
+    assert.ok(g.baseline - g.capMm >= H - grid.margins.bottom - 1e-9, 'cap height below the text area');
+    assert.ok(g.y + g.h <= H + 1e-9, 'frame on the page');
+    assert.ok(Math.abs(g.centreError) <= inc / 2 + 1e-9, 'within half a grid step of centred');
+  }
+});
+
+test('folio frames match the parent text frames; text order flips by side', () => {
+  const { doc } = house();
+  doc.folios.frames.forEach((f, i) => {
+    assert.equal(f.x, doc.master.frames[i].x);
+    assert.equal(f.w, doc.master.frames[i].w);
+  });
+  assert.equal(folioText('verso', 'T', 4), `4${EM_SPACE}T`);
+  assert.equal(folioText('recto', 'T', 5), `T${EM_SPACE}5`);
+});
+
+test('IDML folios: page-number marker, Folio style, well-formed', () => {
+  const { grid, styles, doc } = house();
+  const files = buildIdmlFiles(grid, styles, doc);
+  const get = (p) => files.find((f) => f.path === p)?.data;
+  assert.match(get('Stories/Story_uFolioStory0.xml'), new RegExp(`<Content><\\?ACE 18\\?>${EM_SPACE}Field Notes &amp; Co</Content>`));
+  assert.match(get('Stories/Story_uFolioStory1.xml'), new RegExp(`<Content>Field Notes &amp; Co${EM_SPACE}<\\?ACE 18\\?></Content>`));
+  assert.match(get('Resources/Styles.xml'), /Name="GridMonkey:Folio"[^>]*Justification="AwayFromBindingSide"/);
+  assert.match(get('designmap.xml'), /StoryList="uStory uMasterStory uFolioStory0 uFolioStory1"/);
+  assert.match(get('MasterSpreads/MasterSpread_uMaster.xml'), /FirstBaselineOffset="LeadingOffset"/);
+  if (have('xmllint')) for (const f of files) if (f.path !== 'mimetype') execFileSync('xmllint', ['--noout', '-'], { input: f.data });
+  // Off by default: no folio parts.
+  const plain = buildIdmlFiles(grid, styles, computeDocument(grid, styles, 'facing4'));
+  assert.ok(!plain.some((f) => f.path.includes('Folio')));
+});
+
+test('single-sided folios use the right-hand format', () => {
+  const { doc } = house('single');
+  assert.deepEqual(doc.folios.frames.map((f) => f.side), ['single']);
+});
+
+// ---------- character styles + swatches ----------
+import { SWATCHES } from './swatches.js';
+
+test('character styles: Medium sets only the weight, White only the colour', () => {
+  const { grid, styles, doc } = setup('single');
+  const xml = buildIdmlFiles(grid, styles, doc).find((f) => f.path === 'Resources/Styles.xml').data;
+  const medium = xml.match(/<CharacterStyle [^>]*Name="GridMonkey:Medium"[^>]*>/)[0];
+  const white = xml.match(/<CharacterStyle [^>]*Name="GridMonkey:White"[^>]*>/)[0];
+  assert.match(medium, /FontStyle="Medium"/);
+  assert.doesNotMatch(medium, /FillColor|PointSize|AppliedFont/);
+  assert.match(white, /FillColor="Color\/Paper"/);
+  assert.doesNotMatch(white, /FontStyle|PointSize|AppliedFont/);
+});
+
+test('SCU swatches: 7 CMYK + 7 RGB, prefixed names, exact values', () => {
+  const { grid, styles, doc } = setup('single');
+  const xml = buildIdmlFiles(grid, styles, doc).find((f) => f.path === 'Resources/Graphic.xml').data;
+  assert.equal(SWATCHES.filter((s) => s.space === 'CMYK').length, 7);
+  assert.equal(SWATCHES.filter((s) => s.space === 'RGB').length, 7);
+  assert.match(xml, /Self="Color\/CMYK-SCU Blue"[^>]*Space="CMYK" ColorValue="95 61 30 8"[^>]*Name="CMYK-SCU Blue"/);
+  assert.match(xml, /Self="Color\/RGB-SCU Dark"[^>]*Space="RGB" ColorValue="20 0 64"[^>]*Name="RGB-SCU Dark"/);
+  for (const s of SWATCHES) assert.ok(xml.includes(`Name="${s.name}"`), s.name);
+});
+
+test('download document: 4 pages, styles and swatches, guides, but no dummy copy or placeholder', () => {
+  const grid = computeGrid(HOUSE_GRID);
+  const styles = computeStyles(grid, HOUSE_STYLES);
+  const full = computeDocument(grid, styles, 'facing4');
+  const doc = emptyDocument(full);
+  assert.equal(doc.pages.length, 4);
+  assert.equal(doc.image, null);
+  assert.deepEqual(doc.story, [['Body', '']]);
+  // Page 1's frame is back to the full text area, like every other page.
+  for (const f of doc.frames) {
+    const mf = doc.master.frames[doc.master.pages.indexOf(doc.pages[f.page].side)];
+    assert.deepEqual([f.x, f.y, f.w, f.h], [mf.x, mf.y, mf.w, mf.h]);
+  }
+  assert.equal(doc.frames[0].y, grid.margins.top);
+
+  const files = buildIdmlFiles(grid, styles, doc);
+  const get = (p) => files.find((f) => f.path === p).data;
+  const spreads = files.filter((f) => f.path.startsWith('Spreads/'));
+  assert.equal(spreads.reduce((n, f) => n + (f.data.match(/<Page /g) ?? []).length, 0), 4);
+  for (const f of spreads) {
+    assert.doesNotMatch(f.data, /<Rectangle/);
+    for (const mp of f.data.match(/<MarginPreference [^>]*>/g)) assert.match(mp, /ColumnCount="12"/);
+  }
+  assert.doesNotMatch(get('Stories/Story_uStory.xml'), /<Content>[^<]+<\/Content>/);
+  assert.match(get('Resources/Styles.xml'), /GridMonkey%3aHeading 1/);
+  assert.match(get('Resources/Graphic.xml'), /Name="RGB-SCU Sky"/);
+  // Row guides on both parent pages: 2 per row boundary.
+  const master = get('MasterSpreads/MasterSpread_uMaster.xml');
+  // Guides live inside each <Page>, Location measured from the page top (as InDesign writes it).
+  const masterPages = master.match(/<Page [\s\S]*?<\/Page>/g);
+  assert.equal(masterPages.length, 2);
+  for (const pg of masterPages) {
+    const locs = [...pg.matchAll(/<Guide [^>]*Location="([^"]+)"/g)].map((m) => Number(m[1]));
+    assert.equal(locs.length, doc.guides.rows.length);
+    assert.equal(locs.length, 2 * (grid.rows.number - 1));
+    for (const [k, y] of doc.guides.rows.entries()) assert.ok(Math.abs(locs[k] - (y * 72) / 25.4) < 1e-6);
+  }
+  assert.doesNotMatch(master.replace(/<Page [\s\S]*?<\/Page>/g, ''), /<Guide /);
+  assert.match(get('Resources/Preferences.xml'), /PagesPerDocument="1"/);
+  assert.match(get('Stories/Story_uStory.xml'), /<Content><\/Content>/);
+  assert.ok(full.story.length > 1, 'the preview keeps its dummy copy');
+});
+
+test('styles use the GridAlignment enum InDesign reads (AlignBaseline)', () => {
+  const { grid, styles, doc } = setup('single');
+  const xml = buildIdmlFiles(grid, styles, doc).find((f) => f.path === 'Resources/Styles.xml').data;
+  assert.match(xml, /GridAlignment="AlignBaseline"/);
+  assert.doesNotMatch(xml, /AlignToBaseline/);
+});
+
+test('single-sided: left/right margins, no mirroring, non-facing IDML for any page count', () => {
+  const grid = computeGrid({ ...HOUSE_GRID, facing: false });
+  assert.ok(grid.ok);
+  assert.equal(grid.facing, false);
+  assert.deepEqual(grid.marginNames, { first: 'Left', second: 'Right' });
+  assert.equal(grid.margins.left, grid.margins.inside);
+  assert.equal(grid.margins.right, grid.margins.outside);
+  const styles = computeStyles(grid, HOUSE_STYLES);
+  const doc = computeDocument(grid, styles, 'facing4');
+  assert.equal(doc.format.facing, false);
+  assert.equal(doc.spreads.length, 4);
+  assert.ok(doc.pages.every((p) => p.side === 'single'));
+  assert.deepEqual(doc.master.pages, ['single']);
+  // Every page's text frame starts at the left margin.
+  for (const f of doc.frames) assert.ok(Math.abs(f.x - grid.margins.left) < 1e-9);
+  const files = buildIdmlFiles(grid, styles, emptyDocument(doc));
+  assert.match(files.find((f) => f.path === 'Resources/Preferences.xml').data, /FacingPages="false"/);
+  assert.equal(files.filter((f) => f.path.startsWith('Spreads/')).length, 4);
+  // Facing stays the default.
+  assert.equal(computeDocument(computeGrid(HOUSE_GRID), styles, 'facing4').format.facing, true);
+});
+
+test('equal margins: only even totals, both sides the same', () => {
+  for (const facing of [true, false]) {
+    // 1-unit gutters: totals 12, 24, 36 (all even).
+    const grid = computeGrid({ ...HOUSE_GRID, facing, horizontal: { margins: 12, inside: 8, gutter: 1, equal: true } });
+    assert.ok(grid.ok);
+    const al = grid.allocation.horizontal;
+    assert.equal(al.equal, true);
+    assert.ok(al.options.every((m) => m % 2 === 0));
+    assert.equal(al.inside, al.outside);
+    assert.ok(Math.abs(grid.margins.inside - grid.margins.outside) < 1e-9);
+  }
+  // The house grid (2-unit gutters) only allows 13 or 25: no even total, so equal
+  // isn't available and the requested split stands (the app shows a hint).
+  const odd = computeGrid({ ...HOUSE_GRID, horizontal: { ...HOUSE_GRID.horizontal, equal: true } }).allocation.horizontal;
+  assert.deepEqual([odd.equal, odd.equalAvailable, odd.inside, odd.outside], [false, false, 7, 6]);
+  // Off: the requested split stands.
+  const off = computeGrid(HOUSE_GRID).allocation.horizontal;
+  assert.deepEqual([off.inside, off.outside, off.equal], [7, 6, false]);
 });

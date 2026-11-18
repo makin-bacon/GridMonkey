@@ -59,6 +59,7 @@ export function flowText(paragraphs, styles, slots) {
   let y = 0;
   let atTop = true;
   let prevAfter = 0;
+  let prevStyle = null;
   const counters = [0, 0];
 
   let placed = 0;
@@ -84,7 +85,12 @@ export function flowText(paragraphs, styles, slots) {
 
     for (let i = 0; i < lines.length; i++) {
       if (atTop) y = snap(s.pointSize * 0.75); // space before is ignored at the top of a column
-      else if (i === 0) y = snap(y + mmToPt(prevAfter) + mmToPt(s.spaceBefore) + s.leading);
+      else if (i === 0) {
+        // Same style twice in a row with "space between paragraphs using the same style"
+        // set: that value replaces space after + space before (InDesign's rule).
+        const gap = prevStyle === s && s.sameParaStyleSpacing != null ? s.sameParaStyleSpacing : prevAfter + s.spaceBefore;
+        y = snap(y + mmToPt(gap) + s.leading);
+      }
       else y = s.alignFirstLineOnly ? y + s.leading : snap(y + s.leading);
 
       if (slots[si].top + y + descent > slots[si].bottom) {
@@ -100,6 +106,7 @@ export function flowText(paragraphs, styles, slots) {
       if (si >= slots.length) break outer;
     }
     prevAfter = s.spaceAfter;
+    prevStyle = s;
     placed = p + 1;
   }
   return { items, overset: false, lastY: y, fonts, placed };

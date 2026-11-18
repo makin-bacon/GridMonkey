@@ -64,6 +64,7 @@
   --frame: color-mix(in oklab, var(--color-slate-900) 35%, transparent);
   --thread: #2e6cdf;
   --page: var(--color-white);
+  --page-edge: #475569; /* page outline, drawn over the grid (plain hex, see guide colours) */
   --radius: var(--radius-lg);
   --radius-sm: var(--radius-md);
   --fs-h1: var(--text-h1); --fs-h2: var(--text-h2); --fs-minor: var(--text-minor);
@@ -75,6 +76,7 @@
     --bg: var(--color-slate-950); --surface: var(--color-slate-900); --ink: var(--color-slate-100);
     --ink-2: var(--color-slate-300); --muted: var(--color-slate-400); --line: var(--color-slate-800);
     --page: var(--color-slate-800);
+    --page-edge: #94a3b8; /* lighter so it still shows on the dark page */
     --grid: color-mix(in oklab, var(--color-white) 8%, transparent);
     --frame: color-mix(in oklab, var(--color-white) 35%, transparent);
     color-scheme: dark;
@@ -158,6 +160,7 @@ input[type="number"], input[type="text"], select, output.static {
   background-color: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm);
 }
 select { padding-right: 32px; } /* room for the @tailwindcss/forms arrow */
+input:disabled { opacity: 0.5; cursor: not-allowed; }
 input[type="number"], output.static.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-label); }
 output.static { display: flex; align-items: center; background-color: var(--bg); }
 input:focus-visible, select:focus-visible, button:focus-visible {
@@ -198,7 +201,9 @@ input:focus-visible, select:focus-visible, button:focus-visible {
   border-radius: var(--radius-sm); height: 32px; padding: 0 12px; cursor: pointer; white-space: nowrap;
 }
 .btn:hover { border-color: var(--muted); }
-.btn.icon { width: 32px; padding: 0; font-size: 18px; line-height: 1; }
+.btn.icon { width: 32px; padding: 0; font-size: 18px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; border-color: transparent; color: var(--accent); }
+.btn.icon:hover { border-color: transparent; background: var(--accent-soft); }
+.btn.icon:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .btn.ghost { background: transparent; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 .btn.primary:hover { filter: brightness(1.05); }
@@ -302,6 +307,8 @@ table.styles { width: 100%; border-collapse: collapse; font-size: var(--fs-label
 
 /* ---------- SVG: grid preview ---------- */
 .pg { fill: var(--page); stroke: var(--line); }
+/* 1px page outline, drawn last so grid lines don't cover the page edge. */
+.pg-edge, .ex-page-edge { fill: none; stroke: var(--page-edge); stroke-width: 1; }
 .g-doc { stroke: var(--grid); }
 .g-base { stroke: var(--baseline); }
 .g-col { fill: var(--col); }
@@ -328,6 +335,14 @@ table.styles { width: 100%; border-collapse: collapse; font-size: var(--fs-label
 .ex-image { fill: var(--grid); stroke: var(--frame); }
 .ex-image-x { stroke: var(--frame); }
 .ex-line { fill: var(--ink); }
+/* Sample course tables (web/course-preview.js). Header fill = the reference's RGB 232 236 239. */
+.ex-cell-head { fill: #e8ecef; }
+.ex-cell-sep { stroke: var(--page); stroke-width: 1; }
+.ex-cell-rule { stroke: color-mix(in srgb, var(--ink) 15%, transparent); stroke-width: 1; }
+.ex-icon { fill: none; stroke: var(--ink); stroke-width: 1; }
+.ex-qr-ring { fill: none; stroke: var(--ink); stroke-width: 1.5; }
+.ex-qr-dot { fill: color-mix(in srgb, var(--ink) 55%, transparent); }
+.ex-qr-finder { fill: var(--ink); }
 .ex-thread { fill: none; stroke: var(--thread); stroke-width: 1.25; }
 .ex-port { fill: var(--surface); stroke: var(--thread); }
 .ex-overset { stroke: var(--accent); }

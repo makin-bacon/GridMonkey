@@ -1,9 +1,11 @@
 // Export panel: pick a document format, preview it in context (pages, parent spread,
 // threaded frames, flowed dummy copy, guides) and download it as IDML.
 import { mmToPt } from '../src/core/grid.js';
-import { computeDocument, fitStory, FORMATS } from '../src/core/document.js';
+import { computeDocument, emptyDocument, folioText, FORMATS } from '../src/core/document.js';
 import { buildIdml } from '../src/core/idml.js';
-import { flowText, requestFonts, svgText } from './flow.js';
+import { fontFor } from './flow.js';
+import { resolveLibrary } from '../src/core/library.js';
+import { drawCourseBlocks } from './course-preview.js';
 
 const $ = (id) => document.getElementById(id);
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -11,7 +13,7 @@ const ROW_GAP = 14; // mm between spreads in the preview
 const LABEL = 7; // mm reserved under each spread for page labels
 
 export function createExportPanel({ options, onChange }) {
-  let opts = { format: 'single', showMaster: false, showThreads: true, ...options };
+  let opts = { format: 'single', showMaster: false, showThreads: true, folios: false, title: 'Untitled', ...options };
   let last = null; // { grid, styles, doc }
 
   $('exportFormat').innerHTML = FORMATS.map((f) => `<option value="${f.id}">${f.label}</option>`).join('');
@@ -23,14 +25,20 @@ export function createExportPanel({ options, onChange }) {
   bind('exportFormat', 'format', 'value');
   bind('exportMaster', 'showMaster', 'checked');
   bind('exportThreads', 'showThreads', 'checked');
+  bind('exportFolios', 'folios', 'checked');
+  $('exportTitle').addEventListener('input', (e) => {
+    opts = { ...opts, title: e.target.value };
+    onChange({ ...opts });
+    if (last) render(last.grid, last.styles);
+  });
 
   $('downloadIdml').addEventListener('click', () => {
     if (!last?.doc?.ok) return;
-    const bytes = buildIdml(last.grid, last.styles, last.doc);
+    const bytes = buildIdml(last.grid, last.styles, emptyDocument(last.doc)); // no dummy copy or placeholder
     const blob = new Blob([bytes], { type: 'application/vnd.adobe.indesign-idml-package' });
     const a = Object.assign(document.createElement('a'), {
       href: URL.createObjectURL(blob),
-      download: `gridmonkey-${last.doc.format.id}.idml`,
+      download: `${fileStem(opts.title)}-${last.doc.format.id}.idml`,
     });
     document.body.appendChild(a);
     a.click();
@@ -45,10 +53,13 @@ export function createExportPanel({ options, onChange }) {
     $('exportFormat').value = opts.format;
     $('exportMaster').checked = opts.showMaster;
     $('exportThreads').checked = opts.showThreads;
+    $('exportFolios').checked = opts.folios;
+    $('exportTitle').value = opts.title ?? '';
   }
 
   function render(grid, styles) {
-    const doc = computeDocument(grid, styles, opts.format);
+    // The same empty pages as the download (no image box); sample content is drawn on top.
+    const doc = emptyDocument(computeDocument(grid, styles, opts.format, { folios: opts.folios, title: opts.title }));
     last = { grid, styles, doc };
     $('downloadIdml').disabled = !doc.ok;
     const svg = $('exportPreview');
@@ -60,6 +71,8 @@ export function createExportPanel({ options, onChange }) {
   fill(opts);
   return { fill, render };
 }
+
+const fileStem = (title) => String(title ?? '').trim().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'gridmonkey';
 
 // ---------- drawing (SVG units = mm) ----------
 function el(tag, a, parent) {
@@ -114,24 +127,13 @@ function draw(svg, grid, styles, doc, opts, last) {
   const docFrames = absFrames(doc.frames, place.doc);
   const masterFrames = opts.showMaster ? absFrames(doc.master.frames, place.master) : [];
   for (const f of [...masterFrames, ...docFrames]) drawFrame(svg, f);
+  if (doc.folios) drawFolios(svg, doc, place, opts.showMaster);
 
-  // Flow the dummy story through the document frames (pt for flow, mm for drawing).
-  const k = mmToPt(1);
-  const slots = docFrames.flatMap((f) => {
-    const colW = (f.w - (f.columns - 1) * f.gutter) / f.columns;
-    return Array.from({ length: f.columns }, (_, c) => ({
-      x: (f.ax + c * (colW + f.gutter)) * k, top: f.ay * k, bottom: (f.ay + f.h) * k, width: colW * k,
-    }));
-  });
-  // Flow the generous dummy copy, then keep only whole paragraphs that fit, so the
-  // document opens without overset text. The trimmed story is what gets downloaded.
-  const full = flowText(doc.story, styles, slots);
-  requestFonts(full.fonts);
-  const fitted = fitStory(doc, full.placed);
-  last.doc = fitted;
-  const flow = { ...full, items: full.items.filter((it) => it.para < fitted.story.length), overset: false };
-  const textLayer = el('g', { class: 'ex-text' }, svg);
-  for (const it of flow.items) svgText(textLayer, it, 'ex-line', 1 / k);
+  // Sample content: course blocks (tables) from the reference document, flowed one
+  // after another through the threaded frames with the current styles. Preview only;
+  // the download is empty. Tables span the frame's text columns (Table-vertical-rhythm).
+  const course = drawCourseBlocks(svg, grid, styles, resolveLibrary(grid), docFrames);
+  const flow = { overset: false };
 
   // Text threads, like InDesign's View › Extras › Show Text Threads.
   if (opts.showThreads) {
@@ -143,10 +145,11 @@ function draw(svg, grid, styles, doc, opts, last) {
   const cols = doc.frames[0].columns;
   const num = (v) => `<span class="num">${v}</span>`;
   $('exportSummary').innerHTML = [
-    `${num(n)} page${n > 1 ? 's' : ''}${facing ? ', facing pages' : ''}.`,
+    `${num(n)} page${n > 1 ? 's' : ''}${facing ? ', facing pages' : n > 1 ? ', single-sided' : ''}.`,
     `Text frames have ${num(cols)} column${cols > 1 ? 's' : ''}${n > 1 ? ' and are threaded page to page' : ''}.`,
     `The parent spread has ${doc.master.frames.length > 1 ? 'two linked text frames' : 'one text frame'}.`,
-    flow.overset ? 'The dummy copy runs past the last frame (overset).' : '',
+    doc.folios ? 'Folios sit on the parent pages, with automatic page numbers and the title.' : '',
+    course.blocks ? `The preview shows ${num(course.blocks)} sample course table${course.blocks > 1 ? 's' : ''} flowed through the frames, set in the imported styles; the download has the styles but no copy.` : 'The sample course table doesn\'t fit these frames.',
   ].filter(Boolean).join(' ');
 }
 
@@ -167,6 +170,27 @@ function drawPage(g, grid, doc, x0, y0, side) {
   for (const y of doc.guides.rows) el('line', { x1: x0, y1: y0 + y, x2: x0 + W, y2: y0 + y, class: 'ex-rowguide' }, g);
   for (const y of doc.guides.imageLines) el('line', { x1: x0, y1: y0 + y, x2: x0 + W, y2: y0 + y, class: 'ex-imgguide' }, g);
   el('rect', { x: left, y: top, width: W - m.inside - m.outside, height: areaH, class: 'ex-margin' }, g);
+  el('rect', { x: x0, y: y0, width: W, height: H, class: 'ex-page-edge' }, g); // page outline on top
+}
+
+// Folio frames and text: parent pages show the "A" marker, document pages their number.
+function drawFolios(svg, doc, place, showMaster) {
+  const F = doc.folios;
+  const k = mmToPt(1);
+  const font = fontFor(F.style);
+  const sizeMm = F.style.pointSize / k;
+  const draw = (p, side, label) => {
+    const f = F.frames.find((fr) => fr.side === side) ?? F.frames[0];
+    const x = p.x0 + f.x;
+    el('rect', { x, y: p.y0 + f.y, width: f.w, height: f.h, class: 'ex-frame' }, svg);
+    const t = el('text', {
+      x: side === 'verso' ? x : x + f.w, y: p.y0 + F.baseline, 'text-anchor': side === 'verso' ? 'start' : 'end', class: 'ex-line',
+    }, svg);
+    t.style.font = `${font.italic} ${font.weight} ${sizeMm}px ${font.family}`;
+    t.textContent = folioText(side, F.title, label);
+  };
+  if (showMaster) doc.master.pages.forEach((side, i) => place.master[i] && draw(place.master[i], side, doc.master.prefix));
+  doc.pages.forEach((pg, i) => place.doc[i] && draw(place.doc[i], pg.side, pg.name));
 }
 
 function drawFrame(svg, f) {

@@ -11,6 +11,21 @@ const CRC_TABLE = (() => {
   return t;
 })();
 
+// UTF-8 encode without relying on TextEncoder (not guaranteed in every UXP host).
+export function utf8(str) {
+  if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(str);
+  const out = [];
+  for (let i = 0; i < str.length; i++) {
+    let c = str.codePointAt(i);
+    if (c > 0xffff) i++; // surrogate pair consumed
+    if (c < 0x80) out.push(c);
+    else if (c < 0x800) out.push(0xc0 | (c >> 6), 0x80 | (c & 63));
+    else if (c < 0x10000) out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+    else out.push(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+  }
+  return new Uint8Array(out);
+}
+
 export function crc32(bytes) {
   let c = 0xffffffff;
   for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
@@ -22,7 +37,6 @@ export function crc32(bytes) {
  * @returns {Uint8Array}
  */
 export function zipStore(files, date = new Date()) {
-  const enc = new TextEncoder();
   const time = (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2);
   const day = ((Math.max(1980, date.getFullYear()) - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate();
   const chunks = [];
@@ -30,15 +44,15 @@ export function zipStore(files, date = new Date()) {
   let offset = 0;
 
   for (const f of files) {
-    const name = enc.encode(f.path);
-    const data = typeof f.data === 'string' ? enc.encode(f.data) : f.data;
+    const name = utf8(f.path);
+    const data = typeof f.data === 'string' ? utf8(f.data) : f.data;
     const crc = crc32(data);
-    const utf8 = /[^\x20-\x7e]/.test(f.path) ? 0x0800 : 0;
+    const flags = /[^\x20-\x7e]/.test(f.path) ? 0x0800 : 0; // bit 11: UTF-8 file name
 
     const local = new DataView(new ArrayBuffer(30));
     local.setUint32(0, 0x04034b50, true);
     local.setUint16(4, 20, true); // version needed
-    local.setUint16(6, utf8, true); // flags
+    local.setUint16(6, flags, true);
     local.setUint16(8, 0, true); // method: store
     local.setUint16(10, time, true);
     local.setUint16(12, day, true);
@@ -53,7 +67,7 @@ export function zipStore(files, date = new Date()) {
     cd.setUint32(0, 0x02014b50, true);
     cd.setUint16(4, 20, true); // version made by
     cd.setUint16(6, 20, true); // version needed
-    cd.setUint16(8, utf8, true);
+    cd.setUint16(8, flags, true);
     cd.setUint16(10, 0, true);
     cd.setUint16(12, time, true);
     cd.setUint16(14, day, true);

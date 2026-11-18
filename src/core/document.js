@@ -3,13 +3,16 @@
 // what you see is what you download. All geometry is in mm, relative to each page's
 // top-left corner. Pure.
 
-import { mmToPt } from './grid.js';
+import { mmToPt, ptToMm } from './grid.js';
+import { folioStyle } from './styles.js';
 import { dummyParagraphs, resolveParagraphs } from './dummy.js';
 
 export const FORMATS = Object.freeze([
-  { id: 'single', label: 'Single page (one-sided)', pages: 1, facing: false },
-  { id: 'double', label: 'Double-sided (2 pages)', pages: 2, facing: true },
-  { id: 'facing4', label: '4 pages, facing spreads', pages: 4, facing: true },
+  // `facing` is the default for each; computeDocument follows the grid's facing setting
+  // (a single page is always single-sided).
+  { id: 'single', label: 'Single page', pages: 1, facing: false },
+  { id: 'double', label: '2 pages', pages: 2, facing: true },
+  { id: 'facing4', label: '4 pages', pages: 4, facing: true },
 ]);
 
 const MIN_CHARS_PER_LINE = 40; // narrowest comfortable text column
@@ -28,6 +31,16 @@ export function textColumns(grid) {
 }
 
 /**
+ * The download version of a document: same pages, frames, guides and folios, but no
+ * dummy copy and no image placeholder (those are for the preview only). Page 1's frame
+ * goes back to the full text area, and the story is one empty Body paragraph.
+ */
+export function emptyDocument(doc) {
+  const frameFor = (p) => ({ ...doc.master.frames[doc.master.pages.indexOf(p.side)], page: p.index });
+  return { ...doc, image: null, frames: doc.pages.map(frameFor), story: [['Body', '']] };
+}
+
+/**
  * Trim the story to the first `count` paragraphs (those that fully fit, as measured
  * by a renderer), dropping any headings left stranded at the end.
  */
@@ -37,9 +50,51 @@ export function fitStory(doc, count) {
   return { ...doc, story: doc.story.slice(0, n) };
 }
 
-export function computeDocument(grid, styles, formatId = 'single') {
+export const EM_SPACE = '\u2003';
+const CAP_HEIGHT_EM = 0.7; // estimate when no cap height is set (Graphik ≈ 0.7 em)
+const DESCENT_EM = 0.3; // room under the folio baseline inside its frame
+
+/**
+ * Folio frame placement on a page: same x and width as the text area, one line,
+ * its baseline on the baseline grid as close as possible to centring the line's
+ * cap height between the bottom of the text area and the bottom of the page.
+ * Returns page-relative mm, plus `baseline` and `centreError` for checking.
+ */
+export function folioGeometry(grid, styles) {
+  const H = grid.input.pageHeight;
+  const m = grid.margins;
+  const inc = grid.baseline.increment; // baselines sit at k × inc from the page top
+  const style = folioStyle(styles);
+  const sizeMm = ptToMm(style.pointSize);
+  const leadMm = ptToMm(style.leading);
+  const capMm = Number.isFinite(grid.input.capHeight) && grid.input.capHeight > 0 ? grid.input.capHeight : sizeMm * CAP_HEIGHT_EM;
+  const textBottom = H - m.bottom;
+  const centre = (textBottom + H) / 2;
+  const target = centre + capMm / 2;
+  // Keep the cap height below the text area and the descenders on the page.
+  const lo = Math.ceil((textBottom + capMm) / inc - 1e-9);
+  const hi = Math.floor((H - sizeMm * DESCENT_EM) / inc + 1e-9);
+  const k = Math.min(hi, Math.max(lo, Math.round(target / inc)));
+  const baseline = k * inc;
+  // Frame top a hair above (baseline − leading): with a leading first-baseline
+  // offset and align-to-grid, the line then snaps onto exactly this baseline.
+  const nudge = 0.01;
+  const y = baseline - leadMm - nudge;
+  const bottom = Math.min(H, baseline + sizeMm * DESCENT_EM);
+  return { y, h: bottom - y, baseline, capMm, centreError: baseline - capMm / 2 - centre, style };
+}
+
+/** Folio text for a page side. `page` is the number (or a marker) to show. */
+export function folioText(side, title, page) {
+  return side === 'verso' ? `${page}${EM_SPACE}${title}` : `${title}${EM_SPACE}${page}`;
+}
+
+/** @param options.folios add running feet (page number + title) on the parent pages. @param options.title */
+export function computeDocument(grid, styles, formatId = 'single', options = {}) {
   if (!grid?.ok || !styles?.ok) return { ok: false, errors: ['Fix the grid settings first.'] };
-  const format = FORMATS.find((f) => f.id === formatId) ?? FORMATS[0];
+  const base = FORMATS.find((f) => f.id === formatId) ?? FORMATS[0];
+  // Multi-page documents follow the grid's Facing pages / Single-sided setting.
+  const format = { ...base, facing: base.pages > 1 && grid.facing !== false };
   const W = grid.input.pageWidth;
   const H = grid.input.pageHeight;
   const m = grid.margins;
@@ -104,6 +159,20 @@ export function computeDocument(grid, styles, formatId = 'single') {
   const capacity = frames.reduce((n, f) => n + cols * Math.floor(f.h / lineMm) * colW * charsPerMm, 0);
   const story = resolveParagraphs(dummyParagraphs({ minChars: capacity * FILL }), styles);
 
+  // Folios live on the parent pages, so every document page picks them up.
+  let folios = null;
+  if (options.folios) {
+    const g = folioGeometry(grid, styles);
+    const title = String(options.title ?? '').trim() || 'Untitled';
+    folios = {
+      title,
+      style: g.style,
+      baseline: g.baseline,
+      centreError: g.centreError,
+      frames: masterPages.map((side, i) => ({ page: i, side, x: textLeft(side), y: g.y, w: areaW, h: g.h })),
+    };
+  }
+
   return {
     ok: true,
     format,
@@ -116,5 +185,6 @@ export function computeDocument(grid, styles, formatId = 'single') {
     master: { name: 'A-Parent', prefix: 'A', pages: masterPages, frames: masterFrames },
     guides: { rows: rowGuides, imageLines: imageLineGuides },
     story,
+    folios,
   };
 }

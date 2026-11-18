@@ -1,7 +1,7 @@
 // Text-styles panel: inputs, style table, live specimen on the baseline grid,
 // and the InDesign script download. Display only — maths lives in src/core.
 import { round, mmToPt } from '../src/core/grid.js';
-import { computeStyles, SCALES, STYLE_DEFAULTS, FONTS } from '../src/core/styles.js';
+import { computeStyles, SCALES, SPACE_AFTER, STYLE_DEFAULTS, FONTS } from '../src/core/styles.js';
 import { buildStylesScript } from '../src/core/indesign-script.js';
 import { resolveParagraphs } from '../src/core/dummy.js';
 import { flowText, requestFonts, svgText } from './flow.js';
@@ -14,17 +14,38 @@ const inputs = {
   enabled: { el: $('stEnabled'), prop: 'checked' },
   bodyFontStyle: { el: $('stBodyStyle'), prop: 'value' },
   scale: { el: $('stScale'), prop: 'value', parse: Number },
-  separation: { el: $('stSeparation'), prop: 'value' },
 };
+
+const firstLineId = (k) => (k === 'body' ? 'stBodyFirstLine' : `stH${k}FirstLine`);
 
 export function createStylesPanel({ options, onChange }) {
   const merge = (o) => ({
     ...STYLE_DEFAULTS,
     ...o,
     headingFontStyles: { ...STYLE_DEFAULTS.headingFontStyles, ...(o?.headingFontStyles || {}) },
+    headingSpaceAfter: { ...STYLE_DEFAULTS.headingSpaceAfter, ...(o?.headingSpaceAfter || {}) },
+    firstLineOnly: { ...STYLE_DEFAULTS.firstLineOnly, ...(o?.firstLineOnly || {}) },
   });
   let opts = merge(options);
   const headingSelects = [1, 2, 3].map((l) => $(`stH${l}Style`));
+  const commit = () => { onChange({ ...opts }); render(grid); };
+
+  // Space after (0 / ½ / 1 line) and "Align first line only", for Body and H1–H3.
+  // Controls show the resolved values from computeStyles (automatic ones included).
+  const spaceOptions = SPACE_AFTER.map((o) => `<option value="${o.value}">${o.label}</option>`).join('');
+  document.querySelectorAll('select.space-after').forEach((sel) => (sel.innerHTML = spaceOptions));
+  $('stBodyAfter').addEventListener('change', (e) => { opts.bodySpaceAfter = Number(e.target.value); commit(); });
+  $('stListAfter').addEventListener('change', (e) => { opts.listSpaceAfter = Number(e.target.value); commit(); });
+  [1, 2, 3].forEach((l) => $(`stH${l}After`).addEventListener('change', (e) => {
+    opts.headingSpaceAfter = { ...opts.headingSpaceAfter, [l]: Number(e.target.value) };
+    commit();
+  }));
+  ['body', 1, 2, 3].forEach((k) => $(firstLineId(k)).addEventListener('change', (e) => {
+    opts.firstLineOnly = { ...opts.firstLineOnly, [k]: e.target.checked };
+    commit();
+  }));
+  // Changing separation resets Body's space after to match it (space → 1 line, indent → none).
+  $('stSeparation').addEventListener('change', (e) => { opts.separation = e.target.value; opts.bodySpaceAfter = null; commit(); });
   let grid = null;
   let styles = null;
 
@@ -67,14 +88,24 @@ export function createStylesPanel({ options, onChange }) {
   function fill(next) {
     opts = merge(next);
     for (const [key, { el, prop }] of Object.entries(inputs)) el[prop] = opts[key];
+    $('stSeparation').value = opts.separation;
     headingSelects.forEach((sel, i) => (sel.value = opts.headingFontStyles[i + 1]));
+  }
+
+  /** Show the resolved spacing and alignment (automatic values included). */
+  function fillResolved(r) {
+    $('stBodyAfter').value = String(r.bodySpaceAfter);
+    $('stListAfter').value = String(r.listSpaceAfter);
+    [1, 2, 3].forEach((l) => ($(`stH${l}After`).value = String(r.headingSpaceAfter[l])));
+    ['body', 1, 2, 3].forEach((k) => ($(firstLineId(k)).checked = r.firstLineOnly[k]));
   }
 
   function render(nextGrid) {
     grid = nextGrid;
     const on = opts.enabled;
     $('styleFields').hidden = !on;
-    $('cardStyles').hidden = !on;
+    $('stylesTabBody').hidden = !on; // Under the hood › Paragraph styles
+    $('stylesOff').hidden = on;
     $('cardSpecimen').hidden = !on;
     if (!on) return;
 
@@ -86,6 +117,7 @@ export function createStylesPanel({ options, onChange }) {
       $('styleWarnings').hidden = true;
       return;
     }
+    fillResolved(styles.options);
     renderTable(styles);
     renderSpecimen(grid, styles, opts);
     $('styleWarnings').hidden = !styles.warnings.length;

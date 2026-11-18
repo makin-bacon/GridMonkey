@@ -1,18 +1,23 @@
 import { computeGrid, DEFAULTS, round } from '../src/core/grid.js';
 import { STYLE_DEFAULTS } from '../src/core/styles.js';
+import { HOUSE_GRID, HOUSE_STYLES, HOUSE_EXPORT } from '../src/core/presets.js';
 import { createStylesPanel } from './styles-panel.js';
 import { createMasonry } from './masonry.js';
 import { createExportPanel } from './export-panel.js';
 import { initCollapsible } from './collapse.js';
 import { createTour } from './tour.js';
 import { VERSION } from '../src/core/version.js';
+import { renderIcons } from './icons.js';
 
 const STORAGE_KEY = 'gridmonkey:v1';
 const $ = (id) => document.getElementById(id);
 
 // ---------- state ----------
-const EXPORT_DEFAULTS = { format: 'single', showMaster: false, showThreads: true };
-const freshState = () => structuredClone({ ...DEFAULTS, previewView: 'spread', collapsed: [], styles: { ...STYLE_DEFAULTS }, export: { ...EXPORT_DEFAULTS } });
+// House defaults (src/core/presets.js) on top of the neutral core defaults.
+const freshState = () => structuredClone({
+  ...DEFAULTS, ...HOUSE_GRID, previewView: 'spread', hoodTab: 'grids', rowsEnabled: true, collapsed: [],
+  styles: { ...STYLE_DEFAULTS, ...HOUSE_STYLES }, export: { ...HOUSE_EXPORT },
+});
 let state = load() ?? freshState();
 let layers = { labels: true, docgrid: true, baseline: false, columns: true, rows: true, imagelines: true };
 let result = null;
@@ -37,7 +42,7 @@ function load() {
     if (saved.styles) for (const k of ['bodyFont', 'headingFont', 'headingFontStyle']) delete saved.styles[k];
     return {
       ...fresh, ...saved,
-      styles: { ...fresh.styles, ...(saved.styles || {}) },
+      styles: { ...fresh.styles, ...(saved.styles || {}), headingSpaceAfter: { ...fresh.styles.headingSpaceAfter, ...(saved.styles?.headingSpaceAfter || {}) }, firstLineOnly: { ...fresh.styles.firstLineOnly, ...(saved.styles?.firstLineOnly || {}) } },
       export: { ...fresh.export, ...(saved.export || {}) },
     };
   } catch { return null; }
@@ -115,6 +120,12 @@ function setTotal(a, total) {
   update();
 }
 
+// Document layout, chosen first: facing pages (inside/outside, mirrored spreads) or
+// single-sided (left/right). Labels, the preview and the export follow it.
+document.querySelectorAll('input[name="layout"]').forEach((radio) =>
+  radio.addEventListener('change', () => { state.facing = radio.value === 'facing'; update(); }));
+$('hEqual').addEventListener('change', (e) => { state.horizontal.equal = e.target.checked; update(); });
+
 document.querySelectorAll('input[name="bdiv"]').forEach((radio) =>
   radio.addEventListener('change', () => { state.baselineDivisor = Number(radio.value); update(); }));
 
@@ -128,27 +139,37 @@ document.querySelectorAll('[data-layer]').forEach((cb) => {
   cb.addEventListener('change', () => { layers[cb.dataset.layer] = cb.checked; drawPreview(); });
 });
 
-$('reset').addEventListener('click', () => { state = freshState(); fillInputs(); update(); toast('Reset to A4 defaults'); });
+$('reset').addEventListener('click', () => { state = freshState(); fillInputs(); update(); toast('Reset to defaults'); });
 
 function fillInputs() {
   for (const [key, { el }] of Object.entries(fields)) el.value = state[key] ?? '';
+  $('rowsEnabled').checked = state.rowsEnabled !== false;
   syncPreset();
   const radio = document.querySelector(`input[name="bdiv"][value="${state.baselineDivisor}"]`);
   if (radio) radio.checked = true;
   const view = document.querySelector(`input[name="pview"][value="${state.previewView}"]`);
   if (view) view.checked = true;
+  const layout = document.querySelector(`input[name="layout"][value="${state.facing === false ? 'single' : 'facing'}"]`);
+  if (layout) layout.checked = true;
   stylesPanel.fill(state.styles);
   exportPanel.fill(state.export);
 }
 
 // ---------- compute & render ----------
+// Rows are optional: without them the grid is one full-height row (no row guides).
+const rowsOn = () => state.rowsEnabled !== false;
+const gridInput = () => (rowsOn() ? state : { ...state, rows: 1, vertical: { ...state.vertical, gutter: 0 } });
+
+$('rowsEnabled').addEventListener('change', (e) => { state.rowsEnabled = e.target.checked; update(); });
+
 function update() {
-  result = computeGrid(state);
+  result = computeGrid(gridInput());
   // Write back snapped allocation so the request matches what's shown.
   if (result.allocation) {
     for (const a of Object.values(axis)) {
       const al = result.allocation[a.key];
-      Object.assign(state[a.key], { margins: al.total, [a.firstKey]: al[a.firstKey], gutter: al.gutter });
+      const keepGutter = a.key === 'vertical' && !rowsOn(); // remember the row gutter for when rows return
+      Object.assign(state[a.key], { margins: al.total, [a.firstKey]: al[a.firstKey], ...(keepGutter ? {} : { gutter: al.gutter }) });
     }
   }
   save();
@@ -180,6 +201,22 @@ function render() {
       : `At <span class="num">${Math.round(r.type.proportion * 100)}%</span> this leading is outside the usual <span class="num">120–145%</span> range for body text.`;
   }
 
+  // Document layout: names for the horizontal margins and the Equal switch.
+  const facing = state.facing !== false;
+  const names = facing ? { first: 'Inside', second: 'Outside' } : { first: 'Left', second: 'Right' };
+  $('layoutHint').textContent = facing
+    ? 'Pages mirror across the spine: margins are inside and outside.'
+    : 'Every page is the same: margins are left and right.';
+  $('s2Title').textContent = `${names.first} & ${names.second.toLowerCase()} margins`;
+  $('hFirstLabel').textContent = names.first;
+  $('hSecondLabel').textContent = names.second;
+  $('hEqualLabel').textContent = `Equal ${names.first.toLowerCase()} and ${names.second.toLowerCase()}`;
+  const hal = r.allocation?.horizontal;
+  $('hEqual').checked = !!state.horizontal.equal;
+  $('hEqualHint').hidden = !(state.horizontal.equal && hal && !hal.equalAvailable);
+  $('hInside').disabled = !!hal?.equal;
+  document.querySelector('.seg[aria-label="Preview view"]').hidden = !facing; // single-sided: one page
+
   for (const a of Object.values(axis)) {
     const al = r.allocation?.[a.key];
     const local = r[a.key === 'horizontal' ? 'h' : 'v'];
@@ -190,7 +227,7 @@ function render() {
       a.range.value = opts.indexOf(al.total);
       a.total.textContent = al.total;
       if (document.activeElement !== a.first) a.first.value = al[a.firstKey];
-      if (document.activeElement !== a.gutter) a.gutter.value = al.gutter;
+      if (document.activeElement !== a.gutter) a.gutter.value = state[a.key].gutter ?? al.gutter;
       a.first.max = al.total - 1;
       a.second.textContent = al.total - al[a.firstKey];
     } else {
@@ -227,17 +264,20 @@ function render() {
   values('valMargins', [
     ['Top', mmv(r.margins.top)],
     ['Bottom', mmv(r.margins.bottom)],
-    ['Inside', mmv(r.margins.inside)],
-    ['Outside', mmv(r.margins.outside)],
+    [r.marginNames.first, mmv(r.margins.inside)], // InDesign shows Inside/Outside or Left/Right to match Facing Pages
+    [r.marginNames.second, mmv(r.margins.outside)],
     ['Columns', String(r.columns.number)],
     ['Column gutter', mmv(r.columns.gutter)],
   ]);
   values('valGuides', [
-    ['Rows', String(r.rows.number)],
-    ['Row gutter', mmv(r.rows.gutter)],
+    ...(rowsOn() ? [['Rows', String(r.rows.number)], ['Row gutter', mmv(r.rows.gutter)]] : [['Rows', 'None']]),
     ['Columns', String(r.columns.number)],
     ['Column gutter', mmv(r.columns.gutter)],
   ]);
+
+  $('rows').disabled = !rowsOn();
+  $('vGutterField').hidden = !rowsOn();
+  document.querySelector('[data-layer="rows"]').closest('label').hidden = !rowsOn();
 
   const il = r.imageLines;
   $('cardImage').hidden = !il;
@@ -252,7 +292,8 @@ function render() {
 
   $('summary').innerHTML =
     `${n(r.grid.lines)} baseline lines × ${n(r.grid.hUnits)} vertical units. ` +
-    `Columns ${n(mm(r.columns.width))} (${n(r.columns.widthUnits)} units), rows ${n(mm(r.rows.height))} (${n(r.rows.heightLines)} lines).`;
+    `Columns ${n(mm(r.columns.width))} (${n(r.columns.widthUnits)} units), ` +
+    (rowsOn() ? `rows ${n(mm(r.rows.height))} (${n(r.rows.heightLines)} lines).` : 'no rows.');
 
   drawPreview();
 }
@@ -305,10 +346,11 @@ function drawPreview() {
   const r = result;
   if (!r?.ok) { svg.setAttribute('viewBox', '0 0 100 70'); return; }
   const W = r.input.pageWidth, H = r.input.pageHeight;
-  if (state.previewView === 'single') {
-    // One right-hand page: inside margin on the left, as on a single-sided sheet.
+  if (state.previewView === 'single' || !r.facing) {
+    // One page. Facing: a right-hand page (inside margin on the left). Single-sided:
+    // every page looks like this (left margin on the left).
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-    svg.setAttribute('aria-label', 'Single page showing the grid, inside margin on the left');
+    svg.setAttribute('aria-label', r.facing ? 'Single page showing the grid, inside margin on the left' : 'Page showing the grid, left margin on the left');
     drawPage(svg, r, 0, false);
     return;
   }
@@ -324,8 +366,9 @@ function drawPreview() {
 function marginLabels(g, r, verso, W, H) {
   const m = r.margins;
   const fs = Math.max(2.6, Math.min(W, H) * 0.019); // mm, scales with the page
-  const left = verso ? ['OUTSIDE', m.outside] : ['INSIDE', m.inside];
-  const right = verso ? ['INSIDE', m.inside] : ['OUTSIDE', m.outside];
+  const [first, second] = [r.marginNames.first.toUpperCase(), r.marginNames.second.toUpperCase()];
+  const left = verso ? [second, m.outside] : [first, m.inside];
+  const right = verso ? [first, m.inside] : [second, m.outside];
   const label = (x, y, [name, value]) => {
     const t = el('text', { x, y: y - fs * 0.15, 'text-anchor': 'middle', 'font-size': fs * 0.8, class: 'g-label-name' }, g);
     t.textContent = name;
@@ -378,8 +421,36 @@ function drawPage(svg, r, ox, verso) {
   }
 
   el('rect', { x: left, y: top, width: areaW, height: areaH, class: 'g-margin' }, g);
+  el('rect', { x: 0, y: 0, width: W, height: H, class: 'pg-edge' }, g); // page outline on top
   if (layers.labels) marginLabels(g, r, verso, W, H);
 }
+
+// ---------- Under the hood: tabs ----------
+// One tab per InDesign dialog. Arrow keys / Home / End move between tabs (roving tabindex).
+const hoodTabs = [...document.querySelectorAll('#cardHood [role="tab"]')];
+function selectHoodTab(key, focus = false) {
+  if (!hoodTabs.some((t) => t.dataset.tab === key)) key = hoodTabs[0].dataset.tab;
+  for (const t of hoodTabs) {
+    const on = t.dataset.tab === key;
+    t.setAttribute('aria-selected', String(on));
+    t.tabIndex = on ? 0 : -1;
+    $(t.getAttribute('aria-controls')).hidden = !on;
+    if (on && focus) t.focus();
+  }
+  if (state.hoodTab !== key) { state.hoodTab = key; save(); }
+  masonry?.schedule();
+}
+hoodTabs.forEach((t, i) => {
+  t.addEventListener('click', () => selectHoodTab(t.dataset.tab));
+  t.addEventListener('keydown', (e) => {
+    const n = hoodTabs.length;
+    const to = { ArrowRight: (i + 1) % n, ArrowLeft: (i - 1 + n) % n, Home: 0, End: n - 1 }[e.key];
+    if (to === undefined) return;
+    e.preventDefault();
+    selectHoodTab(hoodTabs[to].dataset.tab, true);
+  });
+});
+selectHoodTab(state.hoodTab);
 
 // ---------- walkthrough ----------
 const TOUR_KEY = 'gridmonkey:tour-seen';
@@ -388,21 +459,19 @@ const TOUR_STEPS = [
   { title: 'Welcome to GridMonkey',
     body: 'GridMonkey builds an InDesign grid from your type. The leading sets the baseline grid, and every margin, column and row lands on a gridline. This tour takes about a minute.' },
   { ...card('s1'), title: 'Start with page and type',
-    body: 'Enter the page size, font size and leading. The leading is adjusted slightly so the page height holds a whole number of lines. Then choose your columns and rows.' },
+    body: 'First choose <strong>Facing pages</strong> or <strong>Single-sided</strong>; the margins, preview and export follow it. Then enter the page size, font size and leading. The leading is adjusted slightly so the page height holds a whole number of lines. Halve the baseline increment for finer vertical steps if you need them. Then choose your columns and rows.' },
   { ...card('s2'), title: 'Margins in gridlines',
-    body: 'Margins are counted in gridlines, not millimetres. The slider only offers totals that keep every column a whole number of units. Split the total between inside and outside. Top and bottom work the same way.' },
+    body: 'Margins are counted in gridlines, not millimetres. The slider only offers totals that keep every column a whole number of units. Split the total between inside and outside (or left and right for a single-sided document), or tick Equal. Top and bottom work the same way.' },
   { ...card('h-preview'), title: 'See it as you go',
-    body: 'The preview updates live. Switch between <strong>Spread</strong> and <strong>Single page</strong> to judge inside and outside margins, and turn layers on and off.' },
-  { ...card('h-grids'), title: 'Values for InDesign',
-    body: 'These cards list exactly what to type into each InDesign dialog. Click any value to copy it. You can halve the baseline increment here for finer vertical steps.' },
-  { ...card('s5'), title: 'Text styles that fit',
-    body: 'GridMonkey builds body, heading and list styles in Graphik and Montserrat that sit on your grid. Choose weights, a heading scale and how paragraphs are separated.' },
-  { ...card('h-styles'), title: 'Styles script',
-    body: 'Download a script that sets the baseline grid and creates these styles in an open InDesign document.' },
-  { ...card('h-export'), title: 'Download a ready-made document',
-    body: 'Or download an IDML file with everything in place: the grid, styles, guides, linked text frames and dummy copy. Pick a single page, a double-sided sheet or four facing pages.' },
+    body: 'The preview updates live. For facing pages, switch between <strong>Spread</strong> and <strong>Single page</strong> to judge inside and outside margins. Turn layers on and off.' },
+  { ...card('s-styles'), title: 'Text styles that fit',
+    body: 'GridMonkey builds body, heading and list styles in Graphik and Montserrat that sit on your grid. Choose weights, a heading scale and how paragraphs are separated. The button at the bottom downloads a script that creates these styles in an open InDesign document.' },
+  { ...card('h-export'), title: 'A ready-made document',
+    body: 'Preview an IDML file with everything in place: the grid, styles, swatches, guides, linked text frames, with dummy copy to show how text flows (the download leaves it out). Pick a single page, a double-sided sheet or four facing pages, then use <strong>Download IDML</strong> at the top of the page.' },
+  { ...card('h-hood'), title: 'Under the hood',
+    body: 'Setting up an existing document by hand? Each tab lists exactly what to type into one InDesign dialog (click any value to copy it), and the last tab lists every paragraph style.' },
   { title: 'You’re set',
-    body: 'Click any card title to collapse it. Your settings are saved in this browser. Replay this tour any time from <strong>Take the tour</strong>.' },
+    body: 'Click any card title to collapse it. Your settings are saved in this browser. Replay this tour any time with the <strong>?</strong> button at the top right, next to <strong>Reset to defaults</strong>.' },
 ];
 const tour = createTour(TOUR_STEPS, {
   onClose: () => { try { localStorage.setItem(TOUR_KEY, '1'); } catch { /* storage unavailable */ } },
@@ -416,6 +485,7 @@ $('startTour').addEventListener('click', () => tour.start());
 
 // ---------- boot ----------
 $('appVersion').textContent = `v${VERSION}`;
+renderIcons();
 initCollapsible(document.querySelectorAll('.layout [data-track]'), {
   collapsed: state.collapsed,
   onChange: (ids) => { state.collapsed = ids; save(); masonry?.schedule(); },
