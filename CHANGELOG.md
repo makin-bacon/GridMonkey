@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1-alpha — 2026-11-23
+
+### Added
+- `package.json` `exports` map (`gridmonkey/core/<module>` → `src/core/<module>.js`), so other projects (SHERPA) can depend on the pure core straight from the GitHub repo at a pinned tag. The web app and plugin are unchanged.
+
+### Changed
+- The `prepare` script no longer fails when GridMonkey is installed as a dependency outside a git checkout.
+
 ## 0.2.0-alpha — 2026-11-18
 
 ### Added
