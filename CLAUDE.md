@@ -192,7 +192,7 @@ When you add a card, give it a `data-track`. `form.inputs` and `.results` become
 
 ## Releases
 
-- **Current version:** `0.2.0-alpha` (alpha). An "Alpha" badge sits in the top bar, and the version is in the footer.
+- **Current version:** `0.2.1-alpha` (alpha). An "Alpha" badge sits in the top bar, and the version is in the footer.
 - **To release:** bump `version` in **both** `package.json` and `src/core/version.js` (the test fails if they differ), add a `CHANGELOG.md` entry, and remove the badge once out of alpha.
 - **When you add a card,** add a `TOUR_STEPS` entry if it's worth explaining.
 
@@ -231,6 +231,8 @@ Gotchas:
 - Single accent colour (`--accent`). Light and dark mode come from CSS tokens in `:root`.
 
 ## Status / log
+
+- **2026-11-23**: **0.2.1-alpha.** `exports` map so SHERPA (`makin-bacon/sherpa`) can import `gridmonkey/core/*` from a pinned tag. GridMonkey stays standalone; content handling lives in SHERPA. 78 tests passing.
 
 - **2026-11-18**: **0.2.0-alpha.** House defaults updated from the user's browser session: ÷2 baseline and 7 inside / 6 outside units (the reference document's 8/5 and ÷4 are kept in its rebuild test). 78 tests passing.
 - **2026-11-18**: **Facing pages / Single-sided** switch (step 1) with left/right margins, an **Equal** option, a one-page preview and non-facing IDML exports; in the web app and the plugin. 78 tests passing.
